@@ -1,9 +1,10 @@
 import { Resend } from 'resend'
 import { NextResponse } from 'next/server'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 export async function POST(request) {
+  // Initialize inside the function to prevent Vercel build errors if the key is missing
+  const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy_key_for_build_purposes')
+
   try {
     const { email, lguName, role, inviteCode } = await request.json()
 
