@@ -1,0 +1,5233 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "description": "",
+    "title": "standard public schema",
+    "version": "14.4"
+  },
+  "host": "xncciaozzxoqbesfxpww.supabase.co:443",
+  "basePath": "/",
+  "schemes": [
+    "https"
+  ],
+  "consumes": [
+    "application/json",
+    "application/vnd.pgrst.object+json;nulls=stripped",
+    "application/vnd.pgrst.object+json",
+    "text/csv"
+  ],
+  "produces": [
+    "application/json",
+    "application/vnd.pgrst.object+json;nulls=stripped",
+    "application/vnd.pgrst.object+json",
+    "text/csv"
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "produces": [
+          "application/openapi+json",
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "OpenAPI description (this document)",
+        "tags": [
+          "Introspection"
+        ]
+      }
+    },
+    "/ai_chatbot_conversation": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.conversation_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.user_prompt"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.ai_output"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.ai_source"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.created_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/ai_chatbot_conversation"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "ai_chatbot_conversation"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.ai_chatbot_conversation"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "ai_chatbot_conversation"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.conversation_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.user_prompt"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.ai_output"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.ai_source"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.created_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "ai_chatbot_conversation"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.conversation_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.user_prompt"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.ai_output"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.ai_source"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.ai_chatbot_conversation.created_at"
+          },
+          {
+            "$ref": "#/parameters/body.ai_chatbot_conversation"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "ai_chatbot_conversation"
+        ]
+      }
+    },
+    "/distress_signals": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.distress_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.profile_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.barangay_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.location_point"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.remarks"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.acknowledged_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.acknowledged_by"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/distress_signals"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "distress_signals"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.distress_signals"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "distress_signals"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.distress_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.profile_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.barangay_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.location_point"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.remarks"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.acknowledged_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.acknowledged_by"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "distress_signals"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.distress_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.profile_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.barangay_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.location_point"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.remarks"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.acknowledged_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.distress_signals.acknowledged_by"
+          },
+          {
+            "$ref": "#/parameters/body.distress_signals"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "distress_signals"
+        ]
+      }
+    },
+    "/id_verification": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.id_verification_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.id_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.id_image_url"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.reviewed_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.submitted_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/id_verification"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "id_verification"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.id_verification"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "id_verification"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.id_verification_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.id_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.id_image_url"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.reviewed_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.submitted_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "id_verification"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.id_verification_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.id_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.id_image_url"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.reviewed_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.id_verification.submitted_at"
+          },
+          {
+            "$ref": "#/parameters/body.id_verification"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "id_verification"
+        ]
+      }
+    },
+    "/resource_allocations": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.allocation_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.request_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.quantity_allocated"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.expected_return_date"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.approved_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.dispatched_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.delivered_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.returned_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/resource_allocations"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "resource_allocations"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.resource_allocations"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "resource_allocations"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.allocation_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.request_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.quantity_allocated"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.expected_return_date"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.approved_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.dispatched_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.delivered_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.returned_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "resource_allocations"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.allocation_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.request_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.quantity_allocated"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.expected_return_date"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.approved_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.dispatched_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.delivered_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_allocations.returned_at"
+          },
+          {
+            "$ref": "#/parameters/body.resource_allocations"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "resource_allocations"
+        ]
+      }
+    },
+    "/pdrrmo_inventory": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.item_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.control_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.item_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.category"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.item_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.total_quantity"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.available_quantity"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.price_each"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.storage_location"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.purchased_date"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.expiration_date"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.created_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/pdrrmo_inventory"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "pdrrmo_inventory"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.pdrrmo_inventory"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "pdrrmo_inventory"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.item_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.control_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.item_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.category"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.item_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.total_quantity"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.available_quantity"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.price_each"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.storage_location"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.purchased_date"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.expiration_date"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.created_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "pdrrmo_inventory"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.item_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.control_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.item_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.category"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.item_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.total_quantity"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.available_quantity"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.price_each"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.storage_location"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.purchased_date"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.expiration_date"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pdrrmo_inventory.created_at"
+          },
+          {
+            "$ref": "#/parameters/body.pdrrmo_inventory"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "pdrrmo_inventory"
+        ]
+      }
+    },
+    "/profiles": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.profiles.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.mobile_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.is_verified"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.barangay_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.profile_picture"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.organization_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.mobile_number_secondary"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.email"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/profiles"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.profiles"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.profiles.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.mobile_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.is_verified"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.barangay_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.profile_picture"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.organization_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.mobile_number_secondary"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.email"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.profiles.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.mobile_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.is_verified"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.barangay_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.profile_picture"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.organization_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.mobile_number_secondary"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.email"
+          },
+          {
+            "$ref": "#/parameters/body.profiles"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      }
+    },
+    "/api_monitoring": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.api_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.api_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.api_status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.last_call_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.error_message"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/api_monitoring"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "api_monitoring"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.api_monitoring"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "api_monitoring"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.api_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.api_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.api_status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.last_call_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.error_message"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "api_monitoring"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.api_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.api_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.api_status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.last_call_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.api_monitoring.error_message"
+          },
+          {
+            "$ref": "#/parameters/body.api_monitoring"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "api_monitoring"
+        ]
+      }
+    },
+    "/province": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.province.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.province.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.province.boundary_geofence"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.province.added_on"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.province.updated_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/province"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "province"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.province"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "province"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.province.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.province.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.province.boundary_geofence"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.province.added_on"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.province.updated_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "province"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.province.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.province.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.province.boundary_geofence"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.province.added_on"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.province.updated_at"
+          },
+          {
+            "$ref": "#/parameters/body.province"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "province"
+        ]
+      }
+    },
+    "/invitations": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.invitations.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.lgu_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.official_email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.invite_code"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.account_role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.invited_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.expires_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.created_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/invitations"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "summary": "Stores temporary 6-digit invite codes for onboarding LGUs and PDRRMO staff with strict audit trails.",
+        "tags": [
+          "invitations"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.invitations"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "summary": "Stores temporary 6-digit invite codes for onboarding LGUs and PDRRMO staff with strict audit trails.",
+        "tags": [
+          "invitations"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.invitations.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.lgu_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.official_email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.invite_code"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.account_role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.invited_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.expires_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.created_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "summary": "Stores temporary 6-digit invite codes for onboarding LGUs and PDRRMO staff with strict audit trails.",
+        "tags": [
+          "invitations"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.invitations.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.lgu_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.official_email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.invite_code"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.account_role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.invited_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.expires_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.invitations.created_at"
+          },
+          {
+            "$ref": "#/parameters/body.invitations"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "summary": "Stores temporary 6-digit invite codes for onboarding LGUs and PDRRMO staff with strict audit trails.",
+        "tags": [
+          "invitations"
+        ]
+      }
+    },
+    "/resource_requests": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.request_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.requested_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.item_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.quantity_requested"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.created_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/resource_requests"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "resource_requests"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.resource_requests"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "resource_requests"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.request_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.requested_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.item_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.quantity_requested"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.created_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "resource_requests"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.request_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.requested_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.item_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.quantity_requested"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.resource_requests.created_at"
+          },
+          {
+            "$ref": "#/parameters/body.resource_requests"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "resource_requests"
+        ]
+      }
+    },
+    "/incident_report": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.report_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.hazard_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.description"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.image_url"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.ai_insight"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.ai_confidence_score"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.ai_tags"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.barangay_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.location_point"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.reviewed_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.reviewed_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/incident_report"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "incident_report"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.incident_report"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "incident_report"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.report_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.hazard_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.description"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.image_url"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.ai_insight"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.ai_confidence_score"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.ai_tags"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.barangay_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.location_point"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.reviewed_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.reviewed_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "incident_report"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.report_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.hazard_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.description"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.image_url"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.ai_insight"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.ai_confidence_score"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.ai_tags"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.barangay_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.location_point"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.reviewed_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.incident_report.reviewed_at"
+          },
+          {
+            "$ref": "#/parameters/body.incident_report"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "incident_report"
+        ]
+      }
+    },
+    "/municipality_or_city": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.center_point"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.boundary_geofence"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.added_on"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.updated_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/municipality_or_city"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "municipality_or_city"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.municipality_or_city"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "municipality_or_city"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.center_point"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.boundary_geofence"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.added_on"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.updated_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "municipality_or_city"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.center_point"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.boundary_geofence"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.added_on"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_or_city.updated_at"
+          },
+          {
+            "$ref": "#/parameters/body.municipality_or_city"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "municipality_or_city"
+        ]
+      }
+    },
+    "/barangay_location": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.barangay_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.center_point"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.psgc_code"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.boundary"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/barangay_location"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "barangay_location"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.barangay_location"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "barangay_location"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.barangay_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.center_point"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.psgc_code"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.boundary"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "barangay_location"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.barangay_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.center_point"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.psgc_code"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.barangay_location.boundary"
+          },
+          {
+            "$ref": "#/parameters/body.barangay_location"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "barangay_location"
+        ]
+      }
+    },
+    "/live_municipality_weather": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.live_municipality_weather.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.live_municipality_weather.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.live_municipality_weather.center_point"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.live_municipality_weather.latitude"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.live_municipality_weather.longitude"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.live_municipality_weather.temperature"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.live_municipality_weather.rainfall_mm"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.live_municipality_weather.wind_speed"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.live_municipality_weather.weather_condition"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.live_municipality_weather.fetched_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/live_municipality_weather"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "live_municipality_weather"
+        ]
+      }
+    },
+    "/municipality_lgu_hotlines": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.municipality_lgu_hotlines.hotline_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_lgu_hotlines.department_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_lgu_hotlines.hotline_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_lgu_hotlines.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/municipality_lgu_hotlines"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "municipality_lgu_hotlines"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.municipality_lgu_hotlines"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "municipality_lgu_hotlines"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.municipality_lgu_hotlines.hotline_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_lgu_hotlines.department_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_lgu_hotlines.hotline_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_lgu_hotlines.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "municipality_lgu_hotlines"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.municipality_lgu_hotlines.hotline_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_lgu_hotlines.department_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_lgu_hotlines.hotline_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_lgu_hotlines.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/body.municipality_lgu_hotlines"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "municipality_lgu_hotlines"
+        ]
+      }
+    },
+    "/sms_logs": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.log_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.api_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.recipient_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.recipient_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.message_content"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.alert_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.sent_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.sent_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/sms_logs"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "sms_logs"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.sms_logs"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "sms_logs"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.log_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.api_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.recipient_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.recipient_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.message_content"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.alert_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.sent_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.sent_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "sms_logs"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.log_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.api_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.recipient_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.recipient_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.message_content"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.alert_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.sent_by"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.sent_at"
+          },
+          {
+            "$ref": "#/parameters/body.sms_logs"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "sms_logs"
+        ]
+      }
+    },
+    "/weather_telemetry": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.telemetry_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.api_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.temperature"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.rainfall_mm"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.wind_speed"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.weather_condition"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.fetched_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.expires_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.added_on"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/weather_telemetry"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "weather_telemetry"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.weather_telemetry"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "weather_telemetry"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.telemetry_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.api_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.temperature"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.rainfall_mm"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.wind_speed"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.weather_condition"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.fetched_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.expires_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.added_on"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "weather_telemetry"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.telemetry_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.api_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.temperature"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.rainfall_mm"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.wind_speed"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.weather_condition"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.fetched_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.expires_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.province_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.weather_telemetry.added_on"
+          },
+          {
+            "$ref": "#/parameters/body.weather_telemetry"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "weather_telemetry"
+        ]
+      }
+    },
+    "/municipality_alerts": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.alert_level"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.issued_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.is_active"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/municipality_alerts"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "municipality_alerts"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.municipality_alerts"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "municipality_alerts"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.alert_level"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.issued_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.is_active"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "municipality_alerts"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.municipality_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.alert_level"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.issued_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.municipality_alerts.is_active"
+          },
+          {
+            "$ref": "#/parameters/body.municipality_alerts"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "municipality_alerts"
+        ]
+      }
+    },
+    "/rpc/insert_cebu_municipality": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_geojson": {
+                  "format": "jsonb"
+                },
+                "p_name": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_psgc_code": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_name",
+                "p_psgc_code",
+                "p_geojson"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) insert_cebu_municipality"
+        ]
+      }
+    },
+    "/rpc/get_municipalities_with_coords": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) get_municipalities_with_coords"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "ai_chatbot_conversation": {
+      "required": [
+        "conversation_id",
+        "user_id",
+        "user_prompt",
+        "ai_output"
+      ],
+      "properties": {
+        "conversation_id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "user_id": {
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "user_prompt": {
+          "format": "text",
+          "type": "string"
+        },
+        "ai_output": {
+          "format": "text",
+          "type": "string"
+        },
+        "ai_source": {
+          "format": "text",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "distress_signals": {
+      "required": [
+        "distress_id",
+        "profile_id",
+        "location_point"
+      ],
+      "properties": {
+        "distress_id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "profile_id": {
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "province_id": {
+          "description": "Note:\nThis is a Foreign Key to `province.province_id`.<fk table='province' column='province_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "municipality_id": {
+          "description": "Note:\nThis is a Foreign Key to `municipality_or_city.municipality_id`.<fk table='municipality_or_city' column='municipality_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "barangay_id": {
+          "description": "Note:\nThis is a Foreign Key to `barangay_location.barangay_id`.<fk table='barangay_location' column='barangay_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "location_point": {
+          "format": "extensions.geography(Point,4326)",
+          "type": "string"
+        },
+        "status": {
+          "default": "Pending",
+          "format": "text",
+          "type": "string"
+        },
+        "remarks": {
+          "format": "text",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "acknowledged_at": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "acknowledged_by": {
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "id_verification": {
+      "required": [
+        "id_verification_id",
+        "user_id",
+        "id_type",
+        "id_image_url"
+      ],
+      "properties": {
+        "id_verification_id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "user_id": {
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "id_type": {
+          "format": "text",
+          "type": "string"
+        },
+        "id_image_url": {
+          "format": "text",
+          "type": "string"
+        },
+        "status": {
+          "default": "pending",
+          "format": "text",
+          "type": "string"
+        },
+        "reviewed_by": {
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "submitted_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "resource_allocations": {
+      "required": [
+        "allocation_id",
+        "request_id",
+        "quantity_allocated"
+      ],
+      "properties": {
+        "allocation_id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "request_id": {
+          "description": "Note:\nThis is a Foreign Key to `resource_requests.request_id`.<fk table='resource_requests' column='request_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "quantity_allocated": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "status": {
+          "default": "Pending_Dispatch",
+          "format": "text",
+          "type": "string"
+        },
+        "expected_return_date": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "approved_by": {
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "dispatched_at": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "delivered_at": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "returned_at": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "pdrrmo_inventory": {
+      "required": [
+        "item_id",
+        "control_number",
+        "item_name",
+        "total_quantity",
+        "available_quantity"
+      ],
+      "properties": {
+        "item_id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "control_number": {
+          "format": "text",
+          "type": "string"
+        },
+        "item_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "category": {
+          "format": "text",
+          "type": "string"
+        },
+        "item_type": {
+          "format": "text",
+          "type": "string"
+        },
+        "total_quantity": {
+          "default": 0,
+          "format": "integer",
+          "type": "integer"
+        },
+        "available_quantity": {
+          "default": 0,
+          "format": "integer",
+          "type": "integer"
+        },
+        "price_each": {
+          "format": "numeric",
+          "type": "number"
+        },
+        "storage_location": {
+          "format": "text",
+          "type": "string"
+        },
+        "purchased_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "expiration_date": {
+          "format": "date",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "profiles": {
+      "required": [
+        "id",
+        "full_name"
+      ],
+      "properties": {
+        "id": {
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "full_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "mobile_number": {
+          "format": "text",
+          "type": "string"
+        },
+        "role": {
+          "default": "citizen",
+          "format": "text",
+          "type": "string"
+        },
+        "is_verified": {
+          "default": false,
+          "format": "boolean",
+          "type": "boolean"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "province_id": {
+          "description": "Note:\nThis is a Foreign Key to `province.province_id`.<fk table='province' column='province_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "municipality_id": {
+          "description": "Note:\nThis is a Foreign Key to `municipality_or_city.municipality_id`.<fk table='municipality_or_city' column='municipality_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "barangay_id": {
+          "description": "Note:\nThis is a Foreign Key to `barangay_location.barangay_id`.<fk table='barangay_location' column='barangay_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "profile_picture": {
+          "format": "text",
+          "type": "string"
+        },
+        "organization_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "mobile_number_secondary": {
+          "format": "text",
+          "type": "string"
+        },
+        "email": {
+          "format": "text",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "api_monitoring": {
+      "required": [
+        "api_id",
+        "api_name"
+      ],
+      "properties": {
+        "api_id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "api_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "api_status": {
+          "default": "Pending",
+          "format": "text",
+          "type": "string"
+        },
+        "last_call_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "error_message": {
+          "format": "text",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "province": {
+      "required": [
+        "province_id",
+        "name"
+      ],
+      "properties": {
+        "province_id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "name": {
+          "format": "text",
+          "type": "string"
+        },
+        "boundary_geofence": {
+          "format": "extensions.geography(MultiPolygon,4326)",
+          "type": "string"
+        },
+        "added_on": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "invitations": {
+      "description": "Stores temporary 6-digit invite codes for onboarding LGUs and PDRRMO staff with strict audit trails.",
+      "required": [
+        "id",
+        "lgu_name",
+        "official_email",
+        "invite_code",
+        "account_role",
+        "status",
+        "expires_at"
+      ],
+      "properties": {
+        "id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "lgu_name": {
+          "description": "The name of the LGU or Provincial Department being invited.",
+          "format": "text",
+          "type": "string"
+        },
+        "official_email": {
+          "format": "text",
+          "type": "string"
+        },
+        "invite_code": {
+          "format": "text",
+          "type": "string"
+        },
+        "account_role": {
+          "default": "LGU",
+          "description": "Defines the dashboard access level the user will receive upon registration.",
+          "format": "text",
+          "type": "string"
+        },
+        "status": {
+          "default": "unused",
+          "format": "text",
+          "type": "string"
+        },
+        "invited_by": {
+          "description": "The UUID of the Super Admin who generated this invite code (Audit Trail).",
+          "format": "uuid",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "resource_requests": {
+      "required": [
+        "request_id",
+        "requested_by",
+        "item_id",
+        "quantity_requested"
+      ],
+      "properties": {
+        "request_id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "municipality_id": {
+          "description": "Note:\nThis is a Foreign Key to `municipality_or_city.municipality_id`.<fk table='municipality_or_city' column='municipality_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "requested_by": {
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "item_id": {
+          "description": "Note:\nThis is a Foreign Key to `pdrrmo_inventory.item_id`.<fk table='pdrrmo_inventory' column='item_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "quantity_requested": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "status": {
+          "default": "Pending",
+          "format": "text",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "incident_report": {
+      "required": [
+        "report_id",
+        "user_id",
+        "hazard_type",
+        "image_url",
+        "municipality_id"
+      ],
+      "properties": {
+        "report_id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "user_id": {
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "hazard_type": {
+          "format": "text",
+          "type": "string"
+        },
+        "description": {
+          "format": "text",
+          "type": "string"
+        },
+        "image_url": {
+          "format": "text",
+          "type": "string"
+        },
+        "ai_insight": {
+          "format": "text",
+          "type": "string"
+        },
+        "ai_confidence_score": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "ai_tags": {
+          "format": "text[]",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "status": {
+          "default": "pending",
+          "format": "text",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "municipality_id": {
+          "description": "Note:\nThis is a Foreign Key to `municipality_or_city.municipality_id`.<fk table='municipality_or_city' column='municipality_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "barangay_id": {
+          "description": "Note:\nThis is a Foreign Key to `barangay_location.barangay_id`.<fk table='barangay_location' column='barangay_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "province_id": {
+          "description": "Note:\nThis is a Foreign Key to `province.province_id`.<fk table='province' column='province_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "location_point": {
+          "format": "extensions.geography(Point,4326)",
+          "type": "string"
+        },
+        "reviewed_by": {
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "reviewed_at": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "municipality_or_city": {
+      "required": [
+        "municipality_id",
+        "province_id",
+        "name"
+      ],
+      "properties": {
+        "municipality_id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "province_id": {
+          "description": "Note:\nThis is a Foreign Key to `province.province_id`.<fk table='province' column='province_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "name": {
+          "format": "text",
+          "type": "string"
+        },
+        "center_point": {
+          "format": "extensions.geography(Point,4326)",
+          "type": "string"
+        },
+        "boundary_geofence": {
+          "format": "extensions.geography(Polygon,4326)",
+          "type": "string"
+        },
+        "added_on": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "barangay_location": {
+      "required": [
+        "barangay_id",
+        "municipality_id",
+        "name"
+      ],
+      "properties": {
+        "barangay_id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "municipality_id": {
+          "description": "Note:\nThis is a Foreign Key to `municipality_or_city.municipality_id`.<fk table='municipality_or_city' column='municipality_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "name": {
+          "format": "text",
+          "type": "string"
+        },
+        "center_point": {
+          "format": "extensions.geography(Point,4326)",
+          "type": "string"
+        },
+        "psgc_code": {
+          "format": "text",
+          "type": "string"
+        },
+        "boundary": {
+          "format": "extensions.geography(MultiPolygon,4326)",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "live_municipality_weather": {
+      "properties": {
+        "municipality_id": {
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "name": {
+          "format": "text",
+          "type": "string"
+        },
+        "center_point": {
+          "format": "extensions.geography(Point,4326)",
+          "type": "string"
+        },
+        "latitude": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "longitude": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "temperature": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "rainfall_mm": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "wind_speed": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "weather_condition": {
+          "format": "text",
+          "type": "string"
+        },
+        "fetched_at": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "municipality_lgu_hotlines": {
+      "required": [
+        "hotline_id",
+        "department_name",
+        "hotline_number",
+        "municipality_id"
+      ],
+      "properties": {
+        "hotline_id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "department_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "hotline_number": {
+          "format": "text",
+          "type": "string"
+        },
+        "municipality_id": {
+          "description": "Note:\nThis is a Foreign Key to `municipality_or_city.municipality_id`.<fk table='municipality_or_city' column='municipality_id'/>",
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "sms_logs": {
+      "required": [
+        "log_id",
+        "recipient_number",
+        "message_content"
+      ],
+      "properties": {
+        "log_id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "api_id": {
+          "description": "Note:\nThis is a Foreign Key to `api_monitoring.api_id`.<fk table='api_monitoring' column='api_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "recipient_number": {
+          "format": "text",
+          "type": "string"
+        },
+        "recipient_id": {
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "message_content": {
+          "format": "text",
+          "type": "string"
+        },
+        "alert_type": {
+          "format": "text",
+          "type": "string"
+        },
+        "status": {
+          "default": "queued",
+          "format": "text",
+          "type": "string"
+        },
+        "sent_by": {
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "sent_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "weather_telemetry": {
+      "required": [
+        "telemetry_id"
+      ],
+      "properties": {
+        "telemetry_id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "api_id": {
+          "description": "Note:\nThis is a Foreign Key to `api_monitoring.api_id`.<fk table='api_monitoring' column='api_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "temperature": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "rainfall_mm": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "wind_speed": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "weather_condition": {
+          "format": "text",
+          "type": "string"
+        },
+        "fetched_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "municipality_id": {
+          "description": "Note:\nThis is a Foreign Key to `municipality_or_city.municipality_id`.<fk table='municipality_or_city' column='municipality_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "province_id": {
+          "description": "Note:\nThis is a Foreign Key to `province.province_id`.<fk table='province' column='province_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "added_on": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "municipality_alerts": {
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "municipality_id": {
+          "description": "Note:\nThis is a Foreign Key to `municipality_or_city.municipality_id`.<fk table='municipality_or_city' column='municipality_id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "alert_level": {
+          "format": "text",
+          "type": "string"
+        },
+        "issued_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "is_active": {
+          "default": true,
+          "format": "boolean",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "parameters": {
+    "preferParams": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "in": "header",
+      "type": "string"
+    },
+    "preferReturn": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "enum": [
+        "return=representation",
+        "return=minimal",
+        "return=none"
+      ],
+      "in": "header",
+      "type": "string"
+    },
+    "preferCount": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "enum": [
+        "count=none"
+      ],
+      "in": "header",
+      "type": "string"
+    },
+    "preferPost": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "enum": [
+        "return=representation",
+        "return=minimal",
+        "return=none",
+        "resolution=ignore-duplicates",
+        "resolution=merge-duplicates"
+      ],
+      "in": "header",
+      "type": "string"
+    },
+    "select": {
+      "name": "select",
+      "description": "Filtering Columns",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "on_conflict": {
+      "name": "on_conflict",
+      "description": "On Conflict",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "order": {
+      "name": "order",
+      "description": "Ordering",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "range": {
+      "name": "Range",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "header",
+      "type": "string"
+    },
+    "rangeUnit": {
+      "name": "Range-Unit",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "default": "items",
+      "in": "header",
+      "type": "string"
+    },
+    "offset": {
+      "name": "offset",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "limit": {
+      "name": "limit",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.ai_chatbot_conversation": {
+      "name": "ai_chatbot_conversation",
+      "description": "ai_chatbot_conversation",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/ai_chatbot_conversation"
+      }
+    },
+    "rowFilter.ai_chatbot_conversation.conversation_id": {
+      "name": "conversation_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.ai_chatbot_conversation.user_id": {
+      "name": "user_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.ai_chatbot_conversation.user_prompt": {
+      "name": "user_prompt",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.ai_chatbot_conversation.ai_output": {
+      "name": "ai_output",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.ai_chatbot_conversation.ai_source": {
+      "name": "ai_source",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.ai_chatbot_conversation.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.distress_signals": {
+      "name": "distress_signals",
+      "description": "distress_signals",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/distress_signals"
+      }
+    },
+    "rowFilter.distress_signals.distress_id": {
+      "name": "distress_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.distress_signals.profile_id": {
+      "name": "profile_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.distress_signals.province_id": {
+      "name": "province_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.distress_signals.municipality_id": {
+      "name": "municipality_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.distress_signals.barangay_id": {
+      "name": "barangay_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.distress_signals.location_point": {
+      "name": "location_point",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.distress_signals.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.distress_signals.remarks": {
+      "name": "remarks",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.distress_signals.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.distress_signals.acknowledged_at": {
+      "name": "acknowledged_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.distress_signals.acknowledged_by": {
+      "name": "acknowledged_by",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.id_verification": {
+      "name": "id_verification",
+      "description": "id_verification",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/id_verification"
+      }
+    },
+    "rowFilter.id_verification.id_verification_id": {
+      "name": "id_verification_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.id_verification.user_id": {
+      "name": "user_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.id_verification.id_type": {
+      "name": "id_type",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.id_verification.id_image_url": {
+      "name": "id_image_url",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.id_verification.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.id_verification.reviewed_by": {
+      "name": "reviewed_by",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.id_verification.submitted_at": {
+      "name": "submitted_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.resource_allocations": {
+      "name": "resource_allocations",
+      "description": "resource_allocations",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/resource_allocations"
+      }
+    },
+    "rowFilter.resource_allocations.allocation_id": {
+      "name": "allocation_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_allocations.request_id": {
+      "name": "request_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_allocations.quantity_allocated": {
+      "name": "quantity_allocated",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_allocations.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_allocations.expected_return_date": {
+      "name": "expected_return_date",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_allocations.approved_by": {
+      "name": "approved_by",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_allocations.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_allocations.dispatched_at": {
+      "name": "dispatched_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_allocations.delivered_at": {
+      "name": "delivered_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_allocations.returned_at": {
+      "name": "returned_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.pdrrmo_inventory": {
+      "name": "pdrrmo_inventory",
+      "description": "pdrrmo_inventory",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/pdrrmo_inventory"
+      }
+    },
+    "rowFilter.pdrrmo_inventory.item_id": {
+      "name": "item_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pdrrmo_inventory.control_number": {
+      "name": "control_number",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pdrrmo_inventory.item_name": {
+      "name": "item_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pdrrmo_inventory.category": {
+      "name": "category",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pdrrmo_inventory.item_type": {
+      "name": "item_type",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pdrrmo_inventory.total_quantity": {
+      "name": "total_quantity",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pdrrmo_inventory.available_quantity": {
+      "name": "available_quantity",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pdrrmo_inventory.price_each": {
+      "name": "price_each",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pdrrmo_inventory.storage_location": {
+      "name": "storage_location",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pdrrmo_inventory.purchased_date": {
+      "name": "purchased_date",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pdrrmo_inventory.expiration_date": {
+      "name": "expiration_date",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pdrrmo_inventory.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.profiles": {
+      "name": "profiles",
+      "description": "profiles",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/profiles"
+      }
+    },
+    "rowFilter.profiles.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.full_name": {
+      "name": "full_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.mobile_number": {
+      "name": "mobile_number",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.role": {
+      "name": "role",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.is_verified": {
+      "name": "is_verified",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.province_id": {
+      "name": "province_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.municipality_id": {
+      "name": "municipality_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.barangay_id": {
+      "name": "barangay_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.profile_picture": {
+      "name": "profile_picture",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.organization_name": {
+      "name": "organization_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.mobile_number_secondary": {
+      "name": "mobile_number_secondary",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.email": {
+      "name": "email",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.api_monitoring": {
+      "name": "api_monitoring",
+      "description": "api_monitoring",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/api_monitoring"
+      }
+    },
+    "rowFilter.api_monitoring.api_id": {
+      "name": "api_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.api_monitoring.api_name": {
+      "name": "api_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.api_monitoring.api_status": {
+      "name": "api_status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.api_monitoring.last_call_at": {
+      "name": "last_call_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.api_monitoring.error_message": {
+      "name": "error_message",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.province": {
+      "name": "province",
+      "description": "province",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/province"
+      }
+    },
+    "rowFilter.province.province_id": {
+      "name": "province_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.province.name": {
+      "name": "name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.province.boundary_geofence": {
+      "name": "boundary_geofence",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.province.added_on": {
+      "name": "added_on",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.province.updated_at": {
+      "name": "updated_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.invitations": {
+      "name": "invitations",
+      "description": "invitations",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/invitations"
+      }
+    },
+    "rowFilter.invitations.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.invitations.lgu_name": {
+      "name": "lgu_name",
+      "description": "The name of the LGU or Provincial Department being invited.",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.invitations.official_email": {
+      "name": "official_email",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.invitations.invite_code": {
+      "name": "invite_code",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.invitations.account_role": {
+      "name": "account_role",
+      "description": "Defines the dashboard access level the user will receive upon registration.",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.invitations.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.invitations.invited_by": {
+      "name": "invited_by",
+      "description": "The UUID of the Super Admin who generated this invite code (Audit Trail).",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.invitations.expires_at": {
+      "name": "expires_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.invitations.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.resource_requests": {
+      "name": "resource_requests",
+      "description": "resource_requests",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/resource_requests"
+      }
+    },
+    "rowFilter.resource_requests.request_id": {
+      "name": "request_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_requests.municipality_id": {
+      "name": "municipality_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_requests.requested_by": {
+      "name": "requested_by",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_requests.item_id": {
+      "name": "item_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_requests.quantity_requested": {
+      "name": "quantity_requested",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_requests.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.resource_requests.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.incident_report": {
+      "name": "incident_report",
+      "description": "incident_report",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/incident_report"
+      }
+    },
+    "rowFilter.incident_report.report_id": {
+      "name": "report_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.user_id": {
+      "name": "user_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.hazard_type": {
+      "name": "hazard_type",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.description": {
+      "name": "description",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.image_url": {
+      "name": "image_url",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.ai_insight": {
+      "name": "ai_insight",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.ai_confidence_score": {
+      "name": "ai_confidence_score",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.ai_tags": {
+      "name": "ai_tags",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.municipality_id": {
+      "name": "municipality_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.barangay_id": {
+      "name": "barangay_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.province_id": {
+      "name": "province_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.location_point": {
+      "name": "location_point",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.reviewed_by": {
+      "name": "reviewed_by",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.incident_report.reviewed_at": {
+      "name": "reviewed_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.municipality_or_city": {
+      "name": "municipality_or_city",
+      "description": "municipality_or_city",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/municipality_or_city"
+      }
+    },
+    "rowFilter.municipality_or_city.municipality_id": {
+      "name": "municipality_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.municipality_or_city.province_id": {
+      "name": "province_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.municipality_or_city.name": {
+      "name": "name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.municipality_or_city.center_point": {
+      "name": "center_point",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.municipality_or_city.boundary_geofence": {
+      "name": "boundary_geofence",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.municipality_or_city.added_on": {
+      "name": "added_on",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.municipality_or_city.updated_at": {
+      "name": "updated_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.barangay_location": {
+      "name": "barangay_location",
+      "description": "barangay_location",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/barangay_location"
+      }
+    },
+    "rowFilter.barangay_location.barangay_id": {
+      "name": "barangay_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.barangay_location.municipality_id": {
+      "name": "municipality_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.barangay_location.name": {
+      "name": "name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.barangay_location.center_point": {
+      "name": "center_point",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.barangay_location.psgc_code": {
+      "name": "psgc_code",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.barangay_location.boundary": {
+      "name": "boundary",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.live_municipality_weather": {
+      "name": "live_municipality_weather",
+      "description": "live_municipality_weather",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/live_municipality_weather"
+      }
+    },
+    "rowFilter.live_municipality_weather.municipality_id": {
+      "name": "municipality_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.live_municipality_weather.name": {
+      "name": "name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.live_municipality_weather.center_point": {
+      "name": "center_point",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.live_municipality_weather.latitude": {
+      "name": "latitude",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.live_municipality_weather.longitude": {
+      "name": "longitude",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.live_municipality_weather.temperature": {
+      "name": "temperature",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.live_municipality_weather.rainfall_mm": {
+      "name": "rainfall_mm",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.live_municipality_weather.wind_speed": {
+      "name": "wind_speed",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.live_municipality_weather.weather_condition": {
+      "name": "weather_condition",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.live_municipality_weather.fetched_at": {
+      "name": "fetched_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.municipality_lgu_hotlines": {
+      "name": "municipality_lgu_hotlines",
+      "description": "municipality_lgu_hotlines",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/municipality_lgu_hotlines"
+      }
+    },
+    "rowFilter.municipality_lgu_hotlines.hotline_id": {
+      "name": "hotline_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.municipality_lgu_hotlines.department_name": {
+      "name": "department_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.municipality_lgu_hotlines.hotline_number": {
+      "name": "hotline_number",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.municipality_lgu_hotlines.municipality_id": {
+      "name": "municipality_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.sms_logs": {
+      "name": "sms_logs",
+      "description": "sms_logs",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/sms_logs"
+      }
+    },
+    "rowFilter.sms_logs.log_id": {
+      "name": "log_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.sms_logs.api_id": {
+      "name": "api_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.sms_logs.recipient_number": {
+      "name": "recipient_number",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.sms_logs.recipient_id": {
+      "name": "recipient_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.sms_logs.message_content": {
+      "name": "message_content",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.sms_logs.alert_type": {
+      "name": "alert_type",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.sms_logs.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.sms_logs.sent_by": {
+      "name": "sent_by",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.sms_logs.sent_at": {
+      "name": "sent_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.weather_telemetry": {
+      "name": "weather_telemetry",
+      "description": "weather_telemetry",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/weather_telemetry"
+      }
+    },
+    "rowFilter.weather_telemetry.telemetry_id": {
+      "name": "telemetry_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.weather_telemetry.api_id": {
+      "name": "api_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.weather_telemetry.temperature": {
+      "name": "temperature",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.weather_telemetry.rainfall_mm": {
+      "name": "rainfall_mm",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.weather_telemetry.wind_speed": {
+      "name": "wind_speed",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.weather_telemetry.weather_condition": {
+      "name": "weather_condition",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.weather_telemetry.fetched_at": {
+      "name": "fetched_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.weather_telemetry.expires_at": {
+      "name": "expires_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.weather_telemetry.municipality_id": {
+      "name": "municipality_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.weather_telemetry.province_id": {
+      "name": "province_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.weather_telemetry.added_on": {
+      "name": "added_on",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.municipality_alerts": {
+      "name": "municipality_alerts",
+      "description": "municipality_alerts",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/municipality_alerts"
+      }
+    },
+    "rowFilter.municipality_alerts.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.municipality_alerts.municipality_id": {
+      "name": "municipality_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.municipality_alerts.alert_level": {
+      "name": "alert_level",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.municipality_alerts.issued_at": {
+      "name": "issued_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.municipality_alerts.is_active": {
+      "name": "is_active",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    }
+  },
+  "externalDocs": {
+    "description": "PostgREST Documentation",
+    "url": "https://postgrest.org/en/v14/references/api.html"
+  }
+}
