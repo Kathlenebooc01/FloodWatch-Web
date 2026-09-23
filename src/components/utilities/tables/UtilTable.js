@@ -114,7 +114,7 @@ export default function UtilTable() {
                   <TableDataMuted className="font-mono text-xs">{item.serial_number || 'N/A'}</TableDataMuted>
                   <TableData>
                     <span className={`px-3 py-1 font-bold rounded-lg text-xs ${
-                      item.quantity <= 3 
+                      item.quantity <= 5 
                         ? "bg-red-50 text-red-700 border border-red-200" 
                         : "bg-primary/10 text-primary"
                     }`}>

@@ -14,7 +14,7 @@ export default function LowUtilties() {
       const { count } = await supabase
         .from('utilities')
         .select('*', { count: 'exact', head: true })
-        .lte('quantity', 3)
+        .lte('quantity', 5)
       
       setLowCount(count || 0)
     }

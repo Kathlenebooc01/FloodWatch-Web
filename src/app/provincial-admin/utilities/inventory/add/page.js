@@ -16,17 +16,16 @@ export default function Page() {
     name: "",
     type: "",
     quantity: "",
-    tags: [],
+    serial_number: "",
     description: ""
   })
 
-  // Form is valid if name, type, and quantity are filled, and tags match the quantity exactly
+  // Form is valid if name, type, and quantity are filled. Serial numbers are optional/flexible.
   const isFormValid = 
     formData.name.trim() !== "" &&
     formData.type.trim() !== "" &&
     formData.quantity !== "" &&
-    parseInt(formData.quantity) > 0 &&
-    formData.tags.length === parseInt(formData.quantity)
+    parseInt(formData.quantity) > 0
 
   const handleSubmit = async () => {
     if (!isFormValid) return
@@ -40,7 +39,7 @@ export default function Page() {
           name: formData.name,
           type: formData.type,
           quantity: parseInt(formData.quantity),
-          serial_number: formData.tags.join(', '),
+          serial_number: formData.serial_number,
           description: formData.description,
           added_by: user?.id || null
         })

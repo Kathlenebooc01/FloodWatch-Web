@@ -10,15 +10,10 @@ export default function AddUtilForms({ formData, setFormData }) {
     // Force numbers only
     const val = e.target.value.replace(/[^0-9]/g, "")
     
-    setFormData(prev => {
-      // If quantity is reduced below current tags count, trim the tags
-      const num = parseInt(val) || 0
-      let newTags = prev.tags
-      if (newTags.length > num) {
-        newTags = newTags.slice(0, num)
-      }
-      return { ...prev, quantity: val, tags: newTags }
-    })
+    setFormData(prev => ({
+      ...prev,
+      quantity: val
+    }))
   }
 
   return (
@@ -53,13 +48,11 @@ export default function AddUtilForms({ formData, setFormData }) {
                 />
             </fieldset>
              <fieldset className="grid gap-1">
-                <CardBasedText className='text-gray-700 font-semibold'>Serial Numbers</CardBasedText>
-                <TagsInput 
-                  placeholder={formData.quantity ? `Add up to ${formData.quantity} serials (press space)` : 'Set quantity first'}
-                  value={formData.tags}
-                  onChange={(newTags) => setFormData(prev => ({ ...prev, tags: newTags }))}
-                  maxTags={parseInt(formData.quantity) || 0}
-                  disabled={!formData.quantity}
+                <CardBasedText className='text-gray-700 font-semibold'>Serial Numbers (Optional)</CardBasedText>
+                <GeneralInput 
+                  placeholder='e.g RC-004'
+                  value={formData.serial_number || ""}
+                  onChange={(e) => setFormData(prev => ({ ...prev, serial_number: e.target.value }))}
                 />
             </fieldset>
         </div>

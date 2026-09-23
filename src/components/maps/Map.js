@@ -405,7 +405,7 @@ export default function FloodWatchMap({ activeTab: externalTab, onTabChange: ext
       <Map
         initialViewState={{ latitude: 10.3157, longitude: 123.8854, zoom: 8.5 }}
         maxBounds={cebuBounds}
-        mapStyle="mapbox://styles/apex-yoshi/cmp0s3wq700bg01sx2y9i69pw"
+        mapStyle="mapbox://styles/mapbox/light-v11"
         mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}
         interactiveLayerIds={['municipality-pins']}
         onClick={handleMapClick}

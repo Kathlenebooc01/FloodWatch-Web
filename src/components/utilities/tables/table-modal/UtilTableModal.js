@@ -112,7 +112,7 @@ export default function UtilTableModal({ item, onClose, onDeleteSuccess }) {
   const getStockStatusPill = (qty) => {
     const num = Number(qty) || 0
     if (num === 0) return { label: 'Out of Stock', style: 'bg-red-100 text-red-700 border-red-200' }
-    if (num <= 2) return { label: 'Low Stock', style: 'bg-amber-100 text-amber-700 border-amber-200' }
+    if (num <= 5) return { label: 'Low Stock', style: 'bg-red-100 text-red-700 border-red-200' }
     return { label: 'In Stock', style: 'bg-emerald-100 text-emerald-700 border-emerald-200' }
   }
 
