@@ -27,6 +27,7 @@ export default function MonitoringNavbar() {
             <Link
               key={link.name}
               href={link.href}
+              prefetch={true}
               className={`shrink-0 px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-200 text-center select-none flex-1 min-w-[72px] sm:min-w-[85px] ${
                 isActive
                   ? "bg-white text-primary shadow-xs font-bold"

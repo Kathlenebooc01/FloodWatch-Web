@@ -1,5 +1,8 @@
+"use client";
+
 import React from 'react';
-import HazardMap from '@/components/maps/HazardMap';
+import dynamic from 'next/dynamic';
+const HazardMap = dynamic(() => import('@/components/maps/HazardMap'), { ssr: false });
 import CardHeader from '@/components/cards/CardHeader';
 import CardSubHeader from '@/components/cards/CardSubHeader';
 

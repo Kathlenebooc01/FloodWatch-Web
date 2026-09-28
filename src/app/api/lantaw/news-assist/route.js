@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
+import { logAiError, logAiSuccess } from '@/lib/logs/apiLogger'
 
 const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI
-const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-3.5-flash'
-const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-2.5-flash'
+const GEMINI_BACKUP_KEY = process.env.GEMINI_LANTAW_BACKUP_AI || process.env.GEMINI_LANTAW_AI
+const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-3.8-flash'
+const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.7-flash'
+const TERTIARY_MODEL = 'gemini-3.1-flash-lite'
 
 // --- LantawThinking: Guardrails ---
 function getGuardrails() {
@@ -81,8 +84,12 @@ function getNewsAssistInstructions(existingFields) {
 }
 
 // --- Gemini API call with backup model fallback ---
-async function callGemini(prompt, model) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`
+async function callGemini(prompt, model, apiKey = GEMINI_API_KEY) {
+    const keyToUse = apiKey || GEMINI_API_KEY
+    if (!keyToUse) {
+        throw new Error("GEMINI_LANTAW_AI environment variable is not configured. Please add your Google Gemini API key to .env.local.")
+    }
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keyToUse}`
 
     const response = await fetch(url, {
         method: 'POST',
@@ -90,8 +97,9 @@ async function callGemini(prompt, model) {
         body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
-                temperature: 0.7,
+                temperature: 0.3,
                 maxOutputTokens: 2048,
+                responseMimeType: "application/json",
             }
         })
     })
@@ -112,6 +120,12 @@ export async function POST(request) {
 
         if (!narration || narration.trim().length < 5) {
             return NextResponse.json({ error: "Please provide a more detailed narration." }, { status: 400 })
+        }
+
+        if (!GEMINI_API_KEY && !GEMINI_BACKUP_KEY) {
+            const missingMsg = "GEMINI_LANTAW_AI is missing in .env.local. Please add your Google Gemini API key to .env.local (e.g. GEMINI_LANTAW_AI=\"AIzaSy...\")."
+            await logAiError("Lantaw News Assist", missingMsg)
+            return NextResponse.json({ error: missingMsg }, { status: 503 })
         }
 
         // Step 1: LantawThinking — Pre-filter
@@ -144,14 +158,22 @@ export async function POST(request) {
         // Step 3: LantawConnect — Call Gemini with primary model, fallback to backup
         let aiResponse
         try {
-            aiResponse = await callGemini(fullPrompt, PRIMARY_MODEL)
+            aiResponse = await callGemini(fullPrompt, PRIMARY_MODEL, GEMINI_API_KEY)
         } catch (primaryError) {
-            console.warn(`Primary model (${PRIMARY_MODEL}) failed, falling back to ${BACKUP_MODEL}:`, primaryError.message)
+            console.warn(`Primary model (${PRIMARY_MODEL}) failed, falling back to ${BACKUP_MODEL} with backup key:`, primaryError.message)
+            await logAiError("Lantaw News Assist", `Primary model (${PRIMARY_MODEL}) failed: ${primaryError.message}`)
+
             try {
-                aiResponse = await callGemini(fullPrompt, BACKUP_MODEL)
+                aiResponse = await callGemini(fullPrompt, BACKUP_MODEL, GEMINI_BACKUP_KEY)
             } catch (backupError) {
-                console.error(`Backup model (${BACKUP_MODEL}) also failed:`, backupError.message)
-                return NextResponse.json({ error: "AI models are currently unavailable. Please try again later." }, { status: 503 })
+                console.warn(`Backup model (${BACKUP_MODEL}) failed, trying tertiary (${TERTIARY_MODEL}):`, backupError.message)
+                try {
+                    aiResponse = await callGemini(fullPrompt, TERTIARY_MODEL, GEMINI_API_KEY || GEMINI_BACKUP_KEY)
+                } catch (tertiaryError) {
+                    console.error("All AI fallback models failed in news assist:", tertiaryError.message)
+                    await logAiError("Lantaw News Assist", `All AI models failed. Latest error (${TERTIARY_MODEL}): ${tertiaryError.message}`)
+                    return NextResponse.json({ error: "AI services are currently busy on Google's side. Please try again in a few moments." }, { status: 503 })
+                }
             }
         }
 
@@ -162,9 +184,11 @@ export async function POST(request) {
 
         try {
             const parsedFields = JSON.parse(cleanedResponse)
+            await logAiSuccess("Lantaw News Assist", "Drafted news board article successfully")
             return NextResponse.json({ fields: parsedFields })
         } catch (parseError) {
             console.error("Failed to parse Lantaw news assist response:", cleanedResponse)
+            await logAiError("Lantaw News Assist", `Failed to parse AI JSON response: ${parseError.message}`)
             return NextResponse.json({
                 error: "Lantaw generated a response but it couldn't be parsed. Please try again."
             }, { status: 500 })
@@ -172,6 +196,7 @@ export async function POST(request) {
 
     } catch (err) {
         console.error("Lantaw News Assist API Error:", err)
+        await logAiError("Lantaw News Assist", `Unexpected error: ${err.message || err}`)
         return NextResponse.json({ error: "An internal error occurred." }, { status: 500 })
     }
 }

@@ -1,6 +1,10 @@
+import { logAiError } from '@/lib/logs/apiLogger';
+
 const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI;
-const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-2.5-flash';
-const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-1.5-flash';
+const GEMINI_BACKUP_KEY = process.env.GEMINI_LANTAW_BACKUP_AI || process.env.GEMINI_LANTAW_AI;
+const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-3.8-flash';
+const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.7-flash';
+const TERTIARY_MODEL = 'gemini-3.1-flash-lite';
 
 /**
  * Normalizes item names for deterministic matching (lowercase alphanumeric).
@@ -73,8 +77,8 @@ If NO duplicates are found, return: []
 `;
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-    const response = await fetch(url, {
+    let url = `https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+    let response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -86,7 +90,50 @@ If NO duplicates are found, return: []
       }),
     });
 
-    if (!response.ok) return [];
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn(`Cleanser primary model (${PRIMARY_MODEL}) failed:`, errText);
+      await logAiError("Lantaw Duplicate Check", `Primary model (${PRIMARY_MODEL}) failed: ${response.status} - ${errText}`);
+      
+      // Fallback to backup model
+      url = `https://generativelanguage.googleapis.com/v1beta/models/${BACKUP_MODEL}:generateContent?key=${GEMINI_BACKUP_KEY}`;
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: "application/json",
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const backupErrText = await response.text();
+        console.warn(`Cleanser backup model (${BACKUP_MODEL}) failed, trying tertiary (${TERTIARY_MODEL}):`, backupErrText);
+        
+        // Tertiary fallback
+        url = `https://generativelanguage.googleapis.com/v1beta/models/${TERTIARY_MODEL}:generateContent?key=${GEMINI_API_KEY || GEMINI_BACKUP_KEY}`;
+        response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: "application/json",
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          const tertiaryErrText = await response.text();
+          await logAiError("Lantaw Duplicate Check", `All models failed. Latest (${TERTIARY_MODEL}): ${response.status} - ${tertiaryErrText}`);
+          return [];
+        }
+      }
+    }
 
     const data = await response.json();
     const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
@@ -95,6 +142,7 @@ If NO duplicates are found, return: []
     return Array.isArray(parsed) ? parsed : [];
   } catch (err) {
     console.warn("Semantic duplicate check warning:", err.message);
+    await logAiError("Lantaw Duplicate Check", err.message);
     return [];
   }
 }

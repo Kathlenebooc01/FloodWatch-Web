@@ -23,6 +23,7 @@ import {
 } from "lucide-react"
 import { supabase } from "@/supabase/util/supabase"
 import DeleteUtilConfirmationModal from "./DeleteUtilConfirmationModal"
+import UtilityTypeSelect from "@/components/forms/UtilityTypeSelect"
 
 export default function UtilTableModal({ item, onClose, onDeleteSuccess }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -154,8 +155,9 @@ export default function UtilTableModal({ item, onClose, onDeleteSuccess }) {
               {/* Utility Type */}
               <div className="grid gap-1">
                 <CardBasedText className="text-xs text-gray-700 font-semibold">Utility Type *</CardBasedText>
-                <GeneralInput 
+                <UtilityTypeSelect 
                   value={editForm.type} 
+                  placeholder="Select or add utility type..."
                   onChange={(e) => setEditForm(prev => ({...prev, type: e.target.value}))} 
                 />
               </div>

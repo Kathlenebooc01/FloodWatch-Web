@@ -17,7 +17,7 @@ export default async function page(props) {
 
   const { data: rawData, error: fetchErr } = await supabase
     .from('province')
-    .select('province_id, name, municipality_or_city(municipality_id, name, center_latitude, center_longitude, center_point, boundary_geofence, added_on, updated_at)')
+    .select('province_id, name, municipality_or_city(municipality_id, name, center_latitude, center_longitude, center_point, added_on, updated_at)')
     .order('name', { ascending: true });
 
   if (fetchErr) {

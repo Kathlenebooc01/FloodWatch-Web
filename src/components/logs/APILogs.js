@@ -30,6 +30,42 @@ export default function APILogs() {
     const [apis, setApis] = useState([])
     const [selectedApi, setSelectedApi] = useState(null)
     const [loading, setLoading] = useState(true)
+    const [activityLogs, setActivityLogs] = useState([])
+    const [loadingLogs, setLoadingLogs] = useState(false)
+
+    useEffect(() => {
+        if (!selectedApi) return;
+
+        async function fetchLogs() {
+            setLoadingLogs(true);
+            try {
+                const { data, error } = await supabase
+                    .from('api_activity_logs')
+                    .select('*')
+                    .eq('api_id', selectedApi.api_id)
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+                
+                if (error) throw error;
+                if (data) setActivityLogs(data);
+            } catch (err) {
+                console.error("Error fetching activity logs:", err.message || JSON.stringify(err));
+            } finally {
+                setLoadingLogs(false);
+            }
+        }
+
+        fetchLogs();
+
+        const channel = supabase
+            .channel('api-logs-channel')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'api_activity_logs', filter: `api_id=eq.${selectedApi.api_id}` }, fetchLogs)
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        }
+    }, [selectedApi?.api_id])
 
     useEffect(() => {
         async function fetchApiLogs() {
@@ -224,56 +260,42 @@ export default function APILogs() {
                             </div>
                             
                             <div className="flex flex-col gap-3">
-                                {selectedApi.error_message && (
-                                    <div className="flex items-start gap-4 p-4 rounded-xl border border-red-100 bg-red-50/30">
-                                        <div className="p-2 rounded-full bg-red-100 text-red-500 shrink-0">
-                                            <CircleSlash className="size-4"/>
-                                        </div>
-                                        <div className="flex flex-col w-full">
-                                            <div className="flex justify-between items-center w-full">
-                                                <span className="font-semibold text-red-800 text-sm">Error Encountered</span>
-                                                <span className="text-xs text-red-400">
-                                                    {selectedApi.last_call_at ? new Date(selectedApi.last_call_at).toLocaleString() : "Recently"}
-                                                </span>
+                                {loadingLogs ? (
+                                    <div className="text-center py-5 text-sm text-gray-400 flex items-center justify-center gap-2">
+                                        <Loader2 className="size-4 animate-spin" /> Loading history...
+                                    </div>
+                                ) : activityLogs.length > 0 ? (
+                                    activityLogs.map((log) => {
+                                        const isError = log.event_type?.toLowerCase().includes('error');
+                                        const isExec = log.event_type?.toLowerCase().includes('execution') || log.event_type?.toLowerCase().includes('call');
+                                        
+                                        const iconClass = isError ? "bg-red-100 text-red-500" : isExec ? "bg-blue-50 text-blue-500" : "bg-green-50 text-green-500";
+                                        const borderClass = isError ? "border-red-100 bg-red-50/30" : "border-gray-100 bg-white shadow-sm";
+                                        
+                                        return (
+                                            <div key={log.id} className={`flex items-start gap-4 p-4 rounded-xl border ${borderClass}`}>
+                                                <div className={`p-2 rounded-full shrink-0 ${iconClass}`}>
+                                                    {isError ? <CircleSlash className="size-4"/> : isExec ? <GitPullRequest className="size-4"/> : <Webhook className="size-4"/>}
+                                                </div>
+                                                <div className="flex flex-col w-full">
+                                                    <div className="flex justify-between items-center w-full">
+                                                        <span className={`font-semibold text-sm ${isError ? 'text-red-800' : 'text-gray-800'}`}>{log.event_type}</span>
+                                                        <span className={`text-xs ${isError ? 'text-red-400' : 'text-gray-400'}`}>
+                                                            {new Date(log.created_at).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                    <p className={`text-xs mt-1 ${isError ? 'text-red-600' : 'text-gray-500'}`}>
+                                                        {log.message}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <p className="text-xs text-red-600 mt-1">
-                                                {selectedApi.error_message}
-                                            </p>
-                                        </div>
+                                        )
+                                    })
+                                ) : (
+                                    <div className="text-center py-5 text-sm text-gray-400 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                                        No activity history available for this API.
                                     </div>
                                 )}
-
-                                <div className="flex items-start gap-4 p-4 rounded-xl border border-gray-100 bg-white shadow-sm">
-                                    <div className="p-2 rounded-full bg-blue-50 text-blue-500 shrink-0">
-                                        <GitPullRequest className="size-4"/>
-                                    </div>
-                                    <div className="flex flex-col w-full">
-                                        <div className="flex justify-between items-center w-full">
-                                            <span className="font-semibold text-gray-800 text-sm">API Execution</span>
-                                            <span className="text-xs text-gray-400">
-                                                {selectedApi.last_call_at ? new Date(selectedApi.last_call_at).toLocaleString() : "Recently"}
-                                            </span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            The {selectedApi.api_name} API was triggered.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-start gap-4 p-4 rounded-xl border border-gray-100 bg-white shadow-sm">
-                                    <div className="p-2 rounded-full bg-green-50 text-green-500 shrink-0">
-                                        <Webhook className="size-4"/>
-                                    </div>
-                                    <div className="flex flex-col w-full">
-                                        <div className="flex justify-between items-center w-full">
-                                            <span className="font-semibold text-gray-800 text-sm">Status Update</span>
-                                            <span className="text-xs text-gray-400">Earlier</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            API status updated to <span className="font-semibold text-gray-700 capitalize">{selectedApi.api_status}</span>.
-                                        </p>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                         

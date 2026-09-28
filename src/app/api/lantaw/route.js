@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { logAiError, logAiSuccess } from '@/lib/logs/apiLogger'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.NEXT_SERVICE_ROLE_KEY
 const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI
-const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-3.5-flash'
-const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-2.5-flash'
+const GEMINI_BACKUP_KEY = process.env.GEMINI_LANTAW_BACKUP_AI || process.env.GEMINI_LANTAW_AI
+const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-3.8-flash'
+const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.7-flash'
+const TERTIARY_MODEL = 'gemini-3.1-flash-lite'
 
 // Initialize Supabase with service role for backend access
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
@@ -139,8 +142,12 @@ async function getAllContextData() {
 }
 
 // --- Gemini API call with backup model fallback ---
-async function callGemini(prompt, model) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`
+async function callGemini(prompt, model, apiKey = GEMINI_API_KEY) {
+    const keyToUse = apiKey || GEMINI_API_KEY
+    if (!keyToUse) {
+        throw new Error("GEMINI_LANTAW_AI environment variable is not configured. Please add your Google Gemini API key to .env.local.")
+    }
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keyToUse}`
 
     const response = await fetch(url, {
         method: 'POST',
@@ -172,6 +179,12 @@ export async function POST(request) {
             return NextResponse.json({ error: "Prompt is too short." }, { status: 400 })
         }
 
+        if (!GEMINI_API_KEY && !GEMINI_BACKUP_KEY) {
+            const missingMsg = "GEMINI_LANTAW_AI is missing in .env.local. Please add your Google Gemini API key to .env.local (e.g. GEMINI_LANTAW_AI=\"AIzaSy...\")."
+            await logAiError("Lantaw Chatbot", missingMsg)
+            return NextResponse.json({ error: missingMsg }, { status: 503 })
+        }
+
         // Step 1: LantawThinking — Pre-filter (basic check)
         // Short queries are allowed through, the AI guardrails handle nuanced rejection
 
@@ -195,16 +208,27 @@ export async function POST(request) {
         // Step 4: LantawConnect — Call Gemini with primary model, fallback to backup
         let aiResponse
         try {
-            aiResponse = await callGemini(fullPrompt, PRIMARY_MODEL)
+            aiResponse = await callGemini(fullPrompt, PRIMARY_MODEL, GEMINI_API_KEY)
         } catch (primaryError) {
-            console.warn(`Primary model (${PRIMARY_MODEL}) failed, falling back to ${BACKUP_MODEL}:`, primaryError.message)
+            console.warn(`Primary model (${PRIMARY_MODEL}) failed, falling back to ${BACKUP_MODEL} with backup key:`, primaryError.message)
+            await logAiError("Lantaw Chatbot", `Primary model (${PRIMARY_MODEL}) failed: ${primaryError.message}`)
+
             try {
-                aiResponse = await callGemini(fullPrompt, BACKUP_MODEL)
+                aiResponse = await callGemini(fullPrompt, BACKUP_MODEL, GEMINI_BACKUP_KEY)
             } catch (backupError) {
-                console.error(`Backup model (${BACKUP_MODEL}) also failed:`, backupError.message)
-                return NextResponse.json({ error: "Both AI models are currently unavailable. Please try again later." }, { status: 503 })
+                console.warn(`Backup model (${BACKUP_MODEL}) failed, trying tertiary (${TERTIARY_MODEL}):`, backupError.message)
+                try {
+                    aiResponse = await callGemini(fullPrompt, TERTIARY_MODEL, GEMINI_API_KEY || GEMINI_BACKUP_KEY)
+                } catch (tertiaryError) {
+                    console.error("All AI fallback models failed:", tertiaryError.message)
+                    await logAiError("Lantaw Chatbot", `All AI models failed. Latest error (${TERTIARY_MODEL}): ${tertiaryError.message}`)
+                    return NextResponse.json({ error: "AI services are currently busy on Google's side. Please try again in a few moments." }, { status: 503 })
+                }
             }
         }
+
+        // Record successful call
+        await logAiSuccess("Lantaw Chatbot", `Successfully answered query (${prompt.slice(0, 45)}...)`)
 
         // Step 5: LantawFormatting — Clean the output
         // Remove excessive newlines
@@ -229,6 +253,7 @@ export async function POST(request) {
         return NextResponse.json({ response: aiResponse })
     } catch (err) {
         console.error("Lantaw API Error:", err)
+        await logAiError("Lantaw Chatbot", `Unexpected error: ${err.message || err}`)
         return NextResponse.json({ error: "An internal error occurred." }, { status: 500 })
     }
 }

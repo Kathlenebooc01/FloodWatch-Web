@@ -2,6 +2,7 @@
 import { useState } from "react"
 import CardBasedText from "@/components/cards/CardBasedText"
 import GeneralInput from "@/components/forms/GeneralInput"
+import UtilityTypeSelect from "@/components/forms/UtilityTypeSelect"
 import TagsInput from "@/components/forms/TagsInput"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
@@ -110,9 +111,9 @@ export default function AddItemForms({ formData, setFormData, errors }) {
           />
         </fieldset>
         <fieldset className="grid gap-1">
-          <CardBasedText className='text-gray-700 font-semibold'>Item Type</CardBasedText>
-          <GeneralInput 
-            placeholder='e.g Electronic Equipment'
+          <CardBasedText className='text-gray-700 font-semibold'>Utility / Item Type</CardBasedText>
+          <UtilityTypeSelect 
+            placeholder='Select or add utility type...'
             value={formData.item_type}
             onChange={(e) => handleChange("item_type", e.target.value)}
           />

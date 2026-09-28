@@ -1,8 +1,11 @@
 import * as XLSX from 'xlsx';
+import { logAiError } from '@/lib/logs/apiLogger';
 
 const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI;
-const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-2.5-flash';
-const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-1.5-flash';
+const GEMINI_BACKUP_KEY = process.env.GEMINI_LANTAW_BACKUP_AI || process.env.GEMINI_LANTAW_AI;
+const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-3.8-flash';
+const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.7-flash';
+const TERTIARY_MODEL = 'gemini-3.1-flash-lite';
 
 const INVENTORY_EXTRACTION_PROMPT = `
 You are Lantaw AI, a specialized data extraction assistant for the FloodWatch Disaster & Emergency Management Platform.
@@ -17,7 +20,7 @@ Return ONLY a valid raw JSON object (no markdown code blocks, no backticks, no c
   "extracted_items": [
     {
       "name": "<exact item name, e.g. Inflatable Rescue Boat, Life Vest, Generator Set>",
-      "type": "<item category/type, e.g. Water Rescue, Medical, Logistics, Communication>",
+      "type": "<standardized category: Medical & First Aid | Water Search & Rescue | Land Search & Rescue | Communication Equipment | Power & Lighting | Logistics & Transportation | Fire & Hazard Response | Heavy Equipment & Clearing Tools | Evacuation & Relief Supplies | General / Multi-Purpose Equipment>",
       "serial_number": "<serial or control number if present, else null>",
       "quantity": <number, e.g. 5>,
       "description": "<brief specifications or condition if present, else null>"
@@ -39,12 +42,15 @@ RULES:
 /**
  * Calls the Gemini API with fallback support.
  */
-async function callGemini(contents, model = PRIMARY_MODEL) {
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_LANTAW_AI API key is not configured.");
+async function callGemini(contents, model = PRIMARY_MODEL, apiKey = GEMINI_API_KEY) {
+  const keyToUse = apiKey || GEMINI_API_KEY;
+  if (!keyToUse) {
+    const keyErr = "GEMINI_LANTAW_AI API key is not configured.";
+    await logAiError("Lantaw Extract", keyErr);
+    throw new Error(keyErr);
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keyToUse}`;
 
   const response = await fetch(url, {
     method: 'POST',
@@ -74,10 +80,22 @@ async function callGemini(contents, model = PRIMARY_MODEL) {
  */
 async function callGeminiWithFallback(contents) {
   try {
-    return await callGemini(contents, PRIMARY_MODEL);
+    return await callGemini(contents, PRIMARY_MODEL, GEMINI_API_KEY);
   } catch (primaryErr) {
-    console.warn(`Primary model (${PRIMARY_MODEL}) failed in extractor, falling back to ${BACKUP_MODEL}:`, primaryErr.message);
-    return await callGemini(contents, BACKUP_MODEL);
+    console.warn(`Primary model (${PRIMARY_MODEL}) failed in extractor, falling back to ${BACKUP_MODEL} with backup key:`, primaryErr.message);
+    await logAiError("Lantaw Extract", `Primary model (${PRIMARY_MODEL}) failed: ${primaryErr.message}. Attempting fallback to ${BACKUP_MODEL}.`);
+    try {
+      return await callGemini(contents, BACKUP_MODEL, GEMINI_BACKUP_KEY);
+    } catch (backupErr) {
+      console.warn(`Backup model (${BACKUP_MODEL}) failed in extractor, trying tertiary (${TERTIARY_MODEL}):`, backupErr.message);
+      try {
+        return await callGemini(contents, TERTIARY_MODEL, GEMINI_API_KEY || GEMINI_BACKUP_KEY);
+      } catch (tertiaryErr) {
+        console.error("All AI extractor fallback models failed:", tertiaryErr.message);
+        await logAiError("Lantaw Extract", `All AI models failed in extractor. Latest (${TERTIARY_MODEL}): ${tertiaryErr.message}`);
+        throw tertiaryErr;
+      }
+    }
   }
 }
 
@@ -95,6 +113,7 @@ function parseAiJson(rawText) {
     return JSON.parse(cleaned);
   } catch (err) {
     console.error("Failed to parse AI JSON response:", rawText);
+    logAiError("Lantaw Extract", `Failed to parse AI JSON response: ${err.message}`, { rawSnippet: (rawText || "").slice(0, 150) });
     return { extracted_items: [] };
   }
 }

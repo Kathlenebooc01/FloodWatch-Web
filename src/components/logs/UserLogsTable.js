@@ -151,8 +151,14 @@ export default function UserLogsTable({ onSelectLog }) {
       const q = searchQuery.toLowerCase()
       rows = rows.filter(r => 
         (r.profiles?.email || "").toLowerCase().includes(q) ||
+        (r.profiles?.full_name || "").toLowerCase().includes(q) ||
+        (r.profiles?.role || "").toLowerCase().includes(q) ||
         (r.ip_address || "").toLowerCase().includes(q) ||
-        (r.login_location || "").toLowerCase().includes(q)
+        (r.login_location || "").toLowerCase().includes(q) ||
+        (r.status || "").toLowerCase().includes(q) ||
+        (r.block_reason || "").toLowerCase().includes(q) ||
+        String(r.profiles?.contact_number || "").toLowerCase().includes(q) ||
+        String(r.profiles?.phone || "").toLowerCase().includes(q)
       )
     }
     return rows

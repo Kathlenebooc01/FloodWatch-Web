@@ -53,14 +53,13 @@ const LANDSLIDE_FILTERS = [
 ];
 
 const CEBU_FAULT_SEGMENTS = [
-  { id: 'all', label: 'All Active Fault Lines', length: '258 km', desc: 'Display all 7 active tectonic traces in Cebu' },
-  { id: 'fault-ccfs-main', label: 'Central Cebu Fault (CCFS)', length: '48.5 km', desc: 'Metro Cebu & Central Highland Corridor' },
-  { id: 'fault-uling-toledo', label: 'Uling - Lutopan Fault', length: '32.0 km', desc: 'Toledo City & Naga Mining Branch' },
-  { id: 'fault-north-cebu-bogo', label: 'North Cebu Fault', length: '36.8 km', desc: 'Bogo City, San Remigio & Medellin' },
-  { id: 'fault-south-cebu-argao', label: 'South Cebu Coastal Fault', length: '42.0 km', desc: 'Argao, Dalaguete & Oslob Coast' },
-  { id: 'fault-southwest-dumanjug', label: 'Southwest Tañon Fault', length: '38.5 km', desc: 'Barili, Dumanjug & Moalboal' },
-  { id: 'fault-camotes-sea', label: 'Camotes Offshore Fault', length: '34.0 km', desc: 'Camotes Islands Marine Fault Trace' },
-  { id: 'fault-bantayan-offshore', label: 'Bantayan Channel Fault', length: '26.5 km', desc: 'Bantayan Island Western Marine Trace' },
+  { id: 'all', label: 'All Active Fault Lines', length: '198 km', desc: 'Central Cebu Fault System (PHIVOLCS)' },
+  { id: 'fault-ccfs-main', label: 'Central Highland Fault (CCFS)', length: '46.2 km', desc: 'Danao - Compostela - Cebu City - Talisay' },
+  { id: 'fault-balamban', label: 'Balamban Cordillera Fault', length: '34.5 km', desc: 'Asturias - Balamban - Toledo (North)' },
+  { id: 'fault-uling-toledo', label: 'Uling - Masaba Fault', length: '28.4 km', desc: 'Toledo City & City of Naga Corridor' },
+  { id: 'fault-lutac-jaclupan', label: 'Lutac - Jaclupan Fault', length: '21.0 km', desc: 'Jaclupan Watershed & Talisay Uplands' },
+  { id: 'fault-north-cebu-bogo', label: 'North Cebu Fault', length: '31.8 km', desc: 'San Remigio - Bogo City - Medellin' },
+  { id: 'fault-south-cebu-argao', label: 'South Cebu Coastal Segment', length: '36.2 km', desc: 'Sibonga - Argao - Dalaguete Foothills' },
 ];
 
 export default function HazardVerticalFilter({
@@ -75,6 +74,9 @@ export default function HazardVerticalFilter({
   onStormSurgeRiskFilterChange,
   faultFilter = 'all',
   onFaultFilterChange,
+  showLiveEarthquakes = true,
+  onToggleLiveEarthquakes,
+  telemetry = null,
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -272,11 +274,43 @@ export default function HazardVerticalFilter({
             </>
           )}
 
-          {/* 4. Cebu Active Fault Lines Segment Selector */}
+          {/* 4. Cebu Active Fault Lines & Live Earthquakes */}
           {activeHazard === 'earthquake' && (
             <>
-              <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider px-1 pt-1">
-                Active Fault Traces (PHIVOLCS)
+              {/* Live USGS Earthquakes Layer Toggle */}
+              <div className="pb-1 border-b border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => onToggleLiveEarthquakes && onToggleLiveEarthquakes(!showLiveEarthquakes)}
+                  className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+                    showLiveEarthquakes
+                      ? 'border-red-300 bg-red-50/80 text-red-950 shadow-xs'
+                      : 'border-gray-200/80 bg-gray-50/60 text-gray-500 hover:bg-gray-100/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2.5 w-2.5">
+                      {showLiveEarthquakes && (
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      )}
+                      <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${showLiveEarthquakes ? 'bg-red-600' : 'bg-gray-400'}`}></span>
+                    </span>
+                    <div className="text-left">
+                      <span className="text-xs font-bold block">Live Earthquakes (USGS)</span>
+                      <span className="text-[10px] text-gray-500 font-medium">Real-time seismic feed (Visayas)</span>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    showLiveEarthquakes ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-600'
+                  }`}>
+                    {showLiveEarthquakes ? 'VISIBLE' : 'HIDDEN'}
+                  </span>
+                </button>
+              </div>
+
+              <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider px-1 pt-1 flex items-center justify-between">
+                <span>Active Fault Traces (PHIVOLCS)</span>
+                <span className="text-[9px] text-gray-400 font-normal">Central Cebu System</span>
               </div>
               <div className="flex flex-col gap-1.5">
                 {CEBU_FAULT_SEGMENTS.map((item) => {

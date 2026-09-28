@@ -311,13 +311,14 @@ export default function ListofUsersTable() {
   };
 
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
 
-  const handleDeleteAccount = async () => {
+  const confirmDelete = () => {
+    setShowDeleteModal(true);
+  };
+
+  const executeDelete = async () => {
     if (!selectedUser?.id) return;
-    
-    if (!window.confirm("Are you sure you want to permanently delete this account? This action cannot be undone.")) {
-      return;
-    }
 
     setIsDeleting(true);
     try {
@@ -334,6 +335,7 @@ export default function ListofUsersTable() {
 
       setUsers(prev => prev.filter(u => u.id !== selectedUser.id));
       setSelectedUser(null);
+      setShowDeleteModal(false);
     } catch (err) {
       console.error("Error deleting account:", err);
       alert(err.message || "Failed to delete account.");
@@ -667,7 +669,7 @@ export default function ListofUsersTable() {
 
               <button
                 type="button"
-                onClick={handleDeleteAccount}
+                onClick={confirmDelete}
                 disabled={isDeleting || isDeactivating}
                 className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
@@ -684,6 +686,48 @@ export default function ListofUsersTable() {
             </button>
           </div>
         </SideModal>
+      )}
+
+      {/* Custom Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 flex flex-col gap-3 items-center text-center">
+              <div className="p-3 bg-red-50 rounded-full text-red-500 mb-2">
+                <Trash2 className="size-8" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-800">Delete User Account?</h3>
+              <p className="text-sm text-gray-500">
+                Are you sure you want to permanently delete <span className="font-bold text-gray-700">{selectedUser?.full_name}</span>'s account? 
+                This action cannot be undone and will erase their profile.
+              </p>
+            </div>
+            
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3 justify-end">
+              <button 
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                className="px-5 py-2 rounded-xl text-sm font-semibold text-gray-600 bg-white border border-gray-200 hover:bg-gray-100 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={executeDelete}
+                disabled={isDeleting}
+                className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 shadow-md transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Yes, Delete Account"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </Table>
   )

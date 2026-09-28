@@ -4,6 +4,7 @@ import CardBasedText from "@/components/cards/CardBasedText"
 import TextArea from "@/components/forms/TextArea"
 import TagsInput from "@/components/forms/TagsInput"
 import GeneralInput from "@/components/forms/GeneralInput"
+import UtilityTypeSelect from "@/components/forms/UtilityTypeSelect"
 
 export default function AddUtilForms({ formData, setFormData }) {
   const handleQuantityChange = (e) => {
@@ -29,8 +30,8 @@ export default function AddUtilForms({ formData, setFormData }) {
             </fieldset>
              <fieldset className="grid gap-1">
                 <CardBasedText className='text-gray-700 font-semibold'>Utility Type</CardBasedText>
-                <GeneralInput 
-                  placeholder='e.g medical'
+                <UtilityTypeSelect 
+                  placeholder='Select or add utility type...'
                   value={formData.type}
                   onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
                 />

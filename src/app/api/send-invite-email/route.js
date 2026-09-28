@@ -18,7 +18,8 @@ export async function POST(request) {
     console.log(registrationUrl)
     console.log('=========================================================\\n')
 
-    const roleName = role === 'lgu_headmaster' ? 'LGU Headmaster' : 'Provincial Admin'
+    const roleMap = { national_admin: 'National Admin', provincial_admin: 'Provincial Admin', lgu_headmaster: 'LGU Headmaster', lgu_frontliner: 'LGU Frontliner', citizen: 'Citizen' };
+    const roleName = roleMap[role] || role;
 
     const { data, error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || 'FloodWatch <onboarding@floodwatch.site>',

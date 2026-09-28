@@ -12,6 +12,7 @@ import MapToggleSwitch from './MapToggleSwitch';
 import WeatherMap from './WeatherMap';
 import SearchInput from '@/components/forms/SearchInput';
 import MapFilterDropdown from './MapFilterDropdown';
+import { getCachedMonitoringData, setCachedMonitoringData } from '@/lib/cache/monitoringCache';
 
 // ─── Layer Style Definitions for GPU Canvas Rendering ──────────────────────
 const pinCircleLayer = {
@@ -160,7 +161,7 @@ export default function FloodWatchMap({ activeTab: externalTab, onTabChange: ext
   const activeTab = externalTab !== undefined ? externalTab : internalTab;
   const handleTabChange = externalOnTabChange || setInternalTab;
 
-  const [weatherData, setWeatherData] = useState([]);
+  const [weatherData, setWeatherData] = useState(() => getCachedMonitoringData('weatherData') || []);
   const [selectedMuni, setSelectedMuni] = useState(null);
   const [cursor, setCursor] = useState('auto');
   const [searchQuery, setSearchQuery] = useState('');
@@ -172,8 +173,8 @@ export default function FloodWatchMap({ activeTab: externalTab, onTabChange: ext
       try {
         const [munisRes, weatherRes, airRes] = await Promise.all([
           supabase.from('municipality_or_city').select('*'),
-          supabase.from('weather_telemetry').select('*').order('fetched_at', { ascending: false }),
-          supabase.from('air_quality').select('*').order('recorded_at', { ascending: false }).order('created_at', { ascending: false })
+          supabase.from('weather_telemetry').select('*').order('fetched_at', { ascending: false }).limit(100),
+          supabase.from('air_quality').select('*').order('recorded_at', { ascending: false }).limit(100)
         ]);
 
         const munis = munisRes.data || [];
@@ -223,6 +224,7 @@ export default function FloodWatchMap({ activeTab: externalTab, onTabChange: ext
         });
 
         setWeatherData(mergedData);
+        setCachedMonitoringData('weatherData', mergedData);
 
         // Keep selected municipality popup details updated in real-time
         setSelectedMuni((prev) => {

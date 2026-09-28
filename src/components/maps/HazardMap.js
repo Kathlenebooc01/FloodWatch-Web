@@ -2,10 +2,28 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Map, { Source, Layer, NavigationControl } from 'react-map-gl/mapbox';
-import { Waves, Mountain, Compass, Satellite, Building, CloudLightning, Activity, X, ShieldAlert, Maximize2 } from 'lucide-react';
+import { 
+  Waves, 
+  Mountain, 
+  Compass, 
+  Satellite, 
+  Building, 
+  CloudLightning, 
+  Activity, 
+  X, 
+  ShieldAlert, 
+  Maximize2,
+  Radio,
+  ExternalLink,
+  Droplets,
+  Wind,
+  RefreshCw,
+  AlertCircle
+} from 'lucide-react';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import HazardMapToogleButton from '../monitoring/HazardMapToogleButton';
 import HazardVerticalFilter from '../monitoring/HazardVerticalFilter';
+import { getCachedMonitoringData, setCachedMonitoringData } from '@/lib/cache/monitoringCache';
 
 const SSA_METADATA = {
   1: { range: '0.5m - 1.0m', desc: 'Low Inundation / Minor Coastal Threat', title: 'Advisory 1' },
@@ -22,20 +40,29 @@ export default function HazardMap({ isFullscreen = false }) {
   const [stormSurgeRiskFilter, setStormSurgeRiskFilter] = useState('all'); // 'all' | 1 | 2 | 3
   const [faultFilter, setFaultFilter] = useState('all'); // 'all' | fault id
   const [isSatellite, setIsSatellite] = useState(false);
+  const [showLiveEarthquakes, setShowLiveEarthquakes] = useState(true);
 
-  // ── Cebu Active Fault Lines State ──
-  const [faultLinesData, setFaultLinesData] = useState({ type: 'FeatureCollection', features: [] });
-  const [faultSummary, setFaultSummary] = useState(null);
+  // ── Real-Time Seismic & Earthquake State (USGS + PHIVOLCS) ──
+  const [faultLinesData, setFaultLinesData] = useState(() => getCachedMonitoringData('faultLinesData') || { type: 'FeatureCollection', features: [] });
+  const [faultSummary, setFaultSummary] = useState(() => getCachedMonitoringData('faultSummary') || null);
+  const [liveEarthquakes, setLiveEarthquakes] = useState(() => getCachedMonitoringData('liveEarthquakes') || []);
+  const [liveEarthquakesGeoJson, setLiveEarthquakesGeoJson] = useState(() => getCachedMonitoringData('liveEarthquakesGeoJson') || { type: 'FeatureCollection', features: [] });
   const [selectedFault, setSelectedFault] = useState(null);
-  const [cursor, setCursor] = useState('auto');
+  const [selectedEarthquake, setSelectedEarthquake] = useState(null);
 
+  // ── Real-Time Weather & Hazard Telemetry (OpenWeather & PAGASA standards) ──
+  const [hazardTelemetry, setHazardTelemetry] = useState(() => getCachedMonitoringData('hazardTelemetry') || null);
+  const [telemetryLoading, setTelemetryLoading] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState(null);
+
+  const [cursor, setCursor] = useState('auto');
   const mapRef = useRef(null);
 
   const defaultMapStyle = process.env.NEXT_PUBLIC_MAPBOX_STYLE || "mapbox://styles/apex-yoshi/cmp0s3wq700bg01sx2y9i69pw";
   const satelliteMapStyle = "mapbox://styles/mapbox/satellite-streets-v12";
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
-  const landslideTileset = process.env.NEXT_PUBLIC_LANDSLIDE_TILESET;
-  const floodTileset = process.env.NEXT_PUBLIC_FLOOD_TILESET;
+  const landslideTileset = process.env.NEXT_PUBLIC_LANDSLIDE_TILESET || "mapbox://apex-yoshi.fpxdxp858iuw";
+  const floodTileset = process.env.NEXT_PUBLIC_FLOOD_TILESET || "mapbox://apex-yoshi.pcfu74sslrtt";
 
   // Resolve Storm Surge combined tileset URL
   const stormSurgeTileset = process.env.NEXT_PUBLIC_STORM_SURGE_COMBINE_TILESET_URL?.startsWith('mapbox://')
@@ -55,23 +82,64 @@ export default function HazardMap({ isFullscreen = false }) {
     pitch: 0
   });
 
-  // Fetch Cebu Active Fault Lines from serverless route
-  const fetchFaultLines = useCallback(async () => {
+  // 1. Fetch Real-time Seismic & Cebu Active Faults from API
+  const fetchSeismicData = useCallback(async () => {
     try {
-      const res = await fetch(`/api/earthquake`, { cache: 'no-store' });
+      const res = await fetch(`/api/earthquake`);
       if (res.ok) {
         const json = await res.json();
-        if (json.fault_lines) setFaultLinesData(json.fault_lines);
-        if (json.summary) setFaultSummary(json.summary);
+        if (json.fault_lines) {
+          setFaultLinesData(json.fault_lines);
+          setCachedMonitoringData('faultLinesData', json.fault_lines);
+        }
+        if (json.summary) {
+          setFaultSummary(json.summary);
+          setCachedMonitoringData('faultSummary', json.summary);
+        }
+        if (json.live_earthquakes) {
+          setLiveEarthquakes(json.live_earthquakes);
+          setCachedMonitoringData('liveEarthquakes', json.live_earthquakes);
+        }
+        if (json.live_earthquakes_geojson) {
+          setLiveEarthquakesGeoJson(json.live_earthquakes_geojson);
+          setCachedMonitoringData('liveEarthquakesGeoJson', json.live_earthquakes_geojson);
+        }
       }
     } catch (err) {
-      console.error("Error fetching Cebu active fault lines:", err);
+      console.error("Error fetching seismic data:", err);
+    }
+  }, []);
+
+  // 2. Fetch Live Weather Telemetry across Cebu Provincial Stations
+  const fetchTelemetry = useCallback(async () => {
+    try {
+      setTelemetryLoading(true);
+      const res = await fetch(`/api/hazard-telemetry`);
+      if (res.ok) {
+        const json = await res.json();
+        setHazardTelemetry(json);
+        setCachedMonitoringData('hazardTelemetry', json);
+        setLastRefreshed(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }));
+      }
+    } catch (err) {
+      console.error("Error fetching hazard telemetry:", err);
+    } finally {
+      setTelemetryLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchFaultLines();
-  }, [fetchFaultLines]);
+    fetchSeismicData();
+    fetchTelemetry();
+
+    // Auto-refresh live data every 2 minutes
+    const interval = setInterval(() => {
+      fetchSeismicData();
+      fetchTelemetry();
+    }, 120000);
+
+    return () => clearInterval(interval);
+  }, [fetchSeismicData, fetchTelemetry]);
 
   // Dynamically inspect Mapbox vector tileset metadata if available
   const handleSourceData = (e) => {
@@ -150,21 +218,38 @@ export default function HazardMap({ isFullscreen = false }) {
     };
   }, [faultLinesData, faultFilter]);
 
-  // Handle map click on fault line trace
+  // Handle map click on fault line trace or live earthquake marker
   const handleMapClick = (event) => {
     if (activeHazard !== 'earthquake') return;
-    const feature = event.features && event.features[0];
-    if (feature && feature.layer?.id?.includes('fault')) {
+    const features = event.features || [];
+
+    // 1. Check if an earthquake circle was clicked
+    const eqFeature = features.find(f => f.layer?.id?.includes('earthquake'));
+    if (eqFeature) {
+      setSelectedEarthquake(eqFeature.properties);
+      setSelectedFault(null);
+      return;
+    }
+
+    // 2. Check if a fault line trace was clicked
+    const faultFeature = features.find(f => f.layer?.id?.includes('fault'));
+    if (faultFeature) {
       setSelectedFault({
-        properties: feature.properties,
+        properties: faultFeature.properties,
         coordinates: [event.lngLat.lng, event.lngLat.lat]
       });
-    } else {
-      setSelectedFault(null);
+      setSelectedEarthquake(null);
+      return;
     }
+
+    // Clicked elsewhere on map: close inspectors
+    setSelectedFault(null);
+    setSelectedEarthquake(null);
   };
 
-  const interactiveLayerIds = activeHazard === 'earthquake' ? ['fault-lines-main'] : [];
+  const interactiveLayerIds = activeHazard === 'earthquake'
+    ? ['fault-lines-main', 'earthquake-points-circle', 'earthquake-points-halo']
+    : [];
 
   return (
     <div className={`relative w-full ${isFullscreen ? 'h-screen rounded-none border-0 shadow-none' : 'h-screen min-h-[600px] rounded-2xl border border-gray-200 shadow-sm'} overflow-hidden bg-gray-900 group`}>
@@ -306,10 +391,10 @@ export default function HazardMap({ isFullscreen = false }) {
                   [
                     'match',
                     ['to-number', ['coalesce', ['get', 'HAZ'], ['get', 'Var'], 1]],
-                    1, '#FACC15', // Low / Yellow
-                    2, '#FB923C', // Moderate / Orange
-                    3, '#DC2626', // High / Red
-                    '#FACC15'     // Default fallback
+                    1, '#FACC15',
+                    2, '#FB923C',
+                    3, '#DC2626',
+                    '#FACC15'
                   ]
                 ],
                 'fill-opacity': isSatellite ? 0.55 : 0.60
@@ -340,7 +425,7 @@ export default function HazardMap({ isFullscreen = false }) {
           </Source>
         )}
 
-        {/* ── 4. Cebu Active Fault Lines GeoJSON Layers (PHIVOLCS) ── */}
+        {/* ── 4a. Cebu Active Fault Lines GeoJSON Layers (PHIVOLCS MCEM System) ── */}
         {activeHazard === 'earthquake' && (
           <Source id="cebu-fault-lines-source" type="geojson" data={filteredFaultLinesGeoJson}>
             {/* Outer Glow Line */}
@@ -383,6 +468,62 @@ export default function HazardMap({ isFullscreen = false }) {
             />
           </Source>
         )}
+
+        {/* ── 4b. Live Earthquakes Source & Layers (USGS Real-Time Feed) ── */}
+        {activeHazard === 'earthquake' && showLiveEarthquakes && (
+          <Source id="live-earthquakes-source" type="geojson" data={liveEarthquakesGeoJson}>
+            {/* Outer halo / pulsing radius */}
+            <Layer
+              id="earthquake-points-halo"
+              type="circle"
+              paint={{
+                'circle-radius': [
+                  'interpolate', ['linear'], ['to-number', ['coalesce', ['get', 'magnitude'], 2]],
+                  2, 12,
+                  4, 20,
+                  6, 32
+                ],
+                'circle-color': ['coalesce', ['get', 'color'], '#DC2626'],
+                'circle-opacity': 0.25,
+                'circle-stroke-width': 1.5,
+                'circle-stroke-color': ['coalesce', ['get', 'color'], '#DC2626'],
+                'circle-stroke-opacity': 0.6
+              }}
+            />
+            {/* Core solid circle */}
+            <Layer
+              id="earthquake-points-circle"
+              type="circle"
+              paint={{
+                'circle-radius': [
+                  'interpolate', ['linear'], ['to-number', ['coalesce', ['get', 'magnitude'], 2]],
+                  2, 6,
+                  4, 10,
+                  6, 16
+                ],
+                'circle-color': ['coalesce', ['get', 'color'], '#DC2626'],
+                'circle-stroke-width': 2,
+                'circle-stroke-color': '#FFFFFF'
+              }}
+            />
+            {/* Magnitude label */}
+            <Layer
+              id="earthquake-points-label"
+              type="symbol"
+              layout={{
+                'text-field': ['concat', 'M', ['to-string', ['get', 'magnitude']]],
+                'text-size': 10,
+                'text-offset': [0, 1.2],
+                'text-anchor': 'top'
+              }}
+              paint={{
+                'text-color': '#111827',
+                'text-halo-color': '#FFFFFF',
+                'text-halo-width': 1.5
+              }}
+            />
+          </Source>
+        )}
       </Map>
 
       {/* Floating Header Controls Overlay */}
@@ -394,6 +535,7 @@ export default function HazardMap({ isFullscreen = false }) {
             onHazardChange={(h) => {
               setActiveHazard(h);
               setSelectedFault(null);
+              setSelectedEarthquake(null);
             }}
           />
 
@@ -412,6 +554,21 @@ export default function HazardMap({ isFullscreen = false }) {
             <span>{isSatellite ? 'Satellite Mode ON' : 'Satellite View'}</span>
           </button>
 
+          {/* Real-time Refresh Button */}
+          <button
+            type="button"
+            onClick={() => {
+              fetchSeismicData();
+              fetchTelemetry();
+            }}
+            disabled={telemetryLoading}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white/95 backdrop-blur-md border border-gray-200/80 shadow-md hover:shadow-lg rounded-xl text-xs font-bold text-gray-700 hover:text-primary transition-all cursor-pointer"
+            title="Refresh Real-Time Live Telemetry & USGS Seismic Feed"
+          >
+            <RefreshCw className={`size-3.5 ${telemetryLoading ? 'animate-spin text-primary' : 'text-gray-500'}`} />
+            <span className="hidden sm:inline">Refresh Live Data</span>
+          </button>
+
           {/* Maximize Button to open map-only in a new tab */}
           {!isFullscreen && (
             <button
@@ -426,7 +583,69 @@ export default function HazardMap({ isFullscreen = false }) {
           )}
         </div>
 
-        {/* Row 2: Vertical Hazard Filter Card */}
+        {/* Row 2: Live Dynamic Hazard Alert Banner */}
+        {hazardTelemetry && (
+          <div className="pointer-events-auto flex items-center gap-2 bg-white/95 backdrop-blur-xl border border-gray-200/90 shadow-lg px-3.5 py-1.5 rounded-xl text-xs font-semibold animate-in fade-in slide-in-from-top-1">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+
+            {activeHazard === 'flood' && (
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded-lg border text-[11px] font-bold ${hazardTelemetry.flood_advisory.badgeColor}`}>
+                  {hazardTelemetry.flood_advisory.level}
+                </span>
+                <span className="text-gray-700 font-medium">
+                  {hazardTelemetry.flood_advisory.statusText}
+                </span>
+                <span className="hidden md:inline font-mono text-[11px] text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded">
+                  Rate: {hazardTelemetry.flood_advisory.maxRainRate}
+                </span>
+              </div>
+            )}
+
+            {activeHazard === 'landslide' && (
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded-lg border text-[11px] font-bold ${hazardTelemetry.landslide_advisory.badgeColor}`}>
+                  {hazardTelemetry.landslide_advisory.level} Trigger Risk
+                </span>
+                <span className="text-gray-700 font-medium">
+                  {hazardTelemetry.landslide_advisory.statusText}
+                </span>
+              </div>
+            )}
+
+            {activeHazard === 'storm-surge' && (
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded-lg border text-[11px] font-bold ${hazardTelemetry.storm_surge_advisory.badgeColor}`}>
+                  {hazardTelemetry.storm_surge_advisory.level}
+                </span>
+                <span className="text-gray-700 font-medium">
+                  {hazardTelemetry.storm_surge_advisory.statusText}
+                </span>
+              </div>
+            )}
+
+            {activeHazard === 'earthquake' && (
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-lg border bg-rose-50 text-rose-700 border-rose-200 text-[11px] font-bold">
+                  USGS Live Feed
+                </span>
+                <span className="text-gray-700 font-medium">
+                  {liveEarthquakes.length} Real-Time Events in Region
+                </span>
+                {faultSummary?.max_live_magnitude && (
+                  <span className="font-mono text-[11px] text-red-700 font-bold bg-red-50 px-1.5 py-0.5 rounded">
+                    Max: M{faultSummary.max_live_magnitude}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Row 3: Vertical Hazard Filter Card */}
         <div className="pointer-events-auto">
           <HazardVerticalFilter
             activeHazard={activeHazard}
@@ -440,6 +659,9 @@ export default function HazardMap({ isFullscreen = false }) {
             onStormSurgeRiskFilterChange={setStormSurgeRiskFilter}
             faultFilter={faultFilter}
             onFaultFilterChange={setFaultFilter}
+            showLiveEarthquakes={showLiveEarthquakes}
+            onToggleLiveEarthquakes={setShowLiveEarthquakes}
+            telemetry={hazardTelemetry}
           />
         </div>
       </div>
@@ -455,7 +677,7 @@ export default function HazardMap({ isFullscreen = false }) {
                   {selectedFault.properties.name}
                 </h4>
                 <span className="text-[11px] text-gray-500 font-medium">
-                  PHIVOLCS Active Fault System
+                  PHIVOLCS MCEM Fault System
                 </span>
               </div>
             </div>
@@ -472,7 +694,7 @@ export default function HazardMap({ isFullscreen = false }) {
           <div className="space-y-2 text-xs">
             <div className="flex justify-between py-1 border-b border-gray-50">
               <span className="text-gray-500 font-medium">Segment</span>
-              <span className="font-bold text-gray-800">{selectedFault.properties.segment}</span>
+              <span className="font-bold text-gray-800 text-right max-w-[200px] truncate">{selectedFault.properties.segment}</span>
             </div>
             <div className="flex justify-between py-1 border-b border-gray-50">
               <span className="text-gray-500 font-medium">Fault Type</span>
@@ -491,7 +713,7 @@ export default function HazardMap({ isFullscreen = false }) {
               <span className="font-bold text-gray-800">{selectedFault.properties.slip_rate}</span>
             </div>
             <div className="pt-1.5">
-              <span className="text-gray-500 font-medium block mb-1">Municipalities Traversed:</span>
+              <span className="text-gray-500 font-medium block mb-1">Traversed Zones:</span>
               <p className="text-[11px] text-gray-700 bg-gray-50 p-2 rounded-lg border border-gray-100 font-semibold leading-relaxed">
                 {selectedFault.properties.municipalities}
               </p>
@@ -500,7 +722,80 @@ export default function HazardMap({ isFullscreen = false }) {
         </div>
       )}
 
-      {/* Floating Info Legend Card (Bottom-Right - Eliminates overlap with top-left filter) */}
+      {/* Floating Interactive Inspector when Live Earthquake Marker is clicked */}
+      {selectedEarthquake && activeHazard === 'earthquake' && (
+        <div className="absolute top-20 right-4 z-30 max-w-sm w-full bg-white/95 backdrop-blur-xl border border-gray-200/90 rounded-2xl p-4 shadow-2xl animate-in fade-in zoom-in-95">
+          <div className="flex items-start justify-between border-b border-gray-100 pb-2.5 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-red-50 text-red-600 rounded-xl border border-red-100">
+                <Activity className="size-5 shrink-0" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-gray-900 leading-tight">
+                    M {selectedEarthquake.magnitude}
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    selectedEarthquake.magnitude >= 4.5
+                      ? 'bg-red-50 text-red-700 border-red-200'
+                      : selectedEarthquake.magnitude >= 3.5
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-yellow-50 text-yellow-800 border-yellow-200'
+                  }`}>
+                    {selectedEarthquake.severity} Seismic Event
+                  </span>
+                </div>
+                <span className="text-[11px] text-gray-500 font-medium">
+                  USGS Real-time Seismic Network
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedEarthquake(null)}
+              className="p-1 text-gray-400 hover:text-gray-700 rounded-lg cursor-pointer"
+              aria-label="Close earthquake details"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          <div className="space-y-2 text-xs">
+            <div className="py-1 border-b border-gray-50">
+              <span className="text-gray-500 font-medium block mb-0.5">Epicenter Location</span>
+              <p className="font-bold text-gray-800 text-sm leading-tight">{selectedEarthquake.place}</p>
+            </div>
+            <div className="flex justify-between py-1 border-b border-gray-50">
+              <span className="text-gray-500 font-medium">Distance from Cebu City</span>
+              <span className="font-bold text-red-600 font-mono">~{selectedEarthquake.distance_cebu_km} km</span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-gray-50">
+              <span className="text-gray-500 font-medium">Focal Depth</span>
+              <span className="font-bold text-gray-800">{selectedEarthquake.depth_km} km</span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-gray-50">
+              <span className="text-gray-500 font-medium">Recorded Date & Time</span>
+              <span className="font-bold text-gray-800">{selectedEarthquake.time_formatted}</span>
+            </div>
+
+            {selectedEarthquake.url && (
+              <div className="pt-2">
+                <a
+                  href={selectedEarthquake.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-xl transition-colors text-xs border border-red-200/60"
+                >
+                  <span>View Official USGS Technical Event</span>
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Floating Info Legend Card (Bottom-Right) */}
       <div className="absolute bottom-4 right-4 z-20 max-w-xs w-full bg-white/95 backdrop-blur-xl border border-gray-200/80 rounded-2xl p-4 shadow-xl grid gap-3">
         <div className="flex items-center justify-between border-b border-gray-100 pb-2">
           <div className="flex items-center gap-2">
@@ -521,22 +816,32 @@ export default function HazardMap({ isFullscreen = false }) {
                   ? 'Landslide Slope Gradient'
                   : activeHazard === 'storm-surge'
                   ? 'Storm Surge Inundation'
-                  : 'Cebu Active Fault Lines'}
+                  : 'Active Faults & Live Earthquakes'}
               </h4>
+              {activeHazard === 'flood' && hazardTelemetry && (
+                <span className="text-[11px] text-blue-600 font-semibold block">
+                  Live: {hazardTelemetry.flood_advisory.statusText}
+                </span>
+              )}
+              {activeHazard === 'landslide' && hazardTelemetry && (
+                <span className="text-[11px] text-red-600 font-semibold block">
+                  Live: {hazardTelemetry.landslide_advisory.statusText}
+                </span>
+              )}
               {activeHazard === 'storm-surge' && (
                 <span className="text-[11px] text-amber-600 font-semibold block">
                   {SSA_METADATA[activeSSA].title} ({SSA_METADATA[activeSSA].range})
                 </span>
               )}
-              {activeHazard === 'earthquake' && faultSummary && (
+              {activeHazard === 'earthquake' && (
                 <span className="text-[11px] text-rose-600 font-semibold block">
-                  {faultSummary.total_fault_segments} Active Traces ({faultSummary.total_length_km} km)
+                  {liveEarthquakes.length} Live Events • {faultSummary?.total_fault_segments || 6} Fault Segments
                 </span>
               )}
             </div>
           </div>
           <span className="text-[10px] font-mono bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-bold uppercase shrink-0">
-            {activeHazard === 'earthquake' ? 'PHIVOLCS' : 'GIS Tileset'}
+            {activeHazard === 'earthquake' ? 'USGS & PHIVOLCS' : 'GIS + Live'}
           </span>
         </div>
 
@@ -549,21 +854,21 @@ export default function HazardMap({ isFullscreen = false }) {
                   <span className="size-3 rounded-full bg-[#1D4ED8]/[0.65] shadow-xs border border-[#1E40AF]" />
                   <span className="text-gray-800 font-bold">&gt; 1.50 m</span>
                 </div>
-                <span className="text-gray-500 text-[11px] font-medium">VAR 3 (Above human height)</span>
+                <span className="text-gray-500 text-[11px] font-medium">VAR 3 (High Inundation)</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="size-3 rounded-full bg-[#3B82F6]/[0.65] shadow-xs border border-[#1E40AF]" />
                   <span className="text-gray-800 font-bold">0.50 m - 1.50 m</span>
                 </div>
-                <span className="text-gray-500 text-[11px] font-medium">VAR 2 (Knee to chest)</span>
+                <span className="text-gray-500 text-[11px] font-medium">VAR 2 (Moderate)</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="size-3 rounded-full bg-[#93C5FD]/[0.65] shadow-xs border border-[#1E40AF]" />
                   <span className="text-gray-800 font-bold">0.10 m - 0.50 m</span>
                 </div>
-                <span className="text-gray-500 text-[11px] font-medium">VAR 1 (Ankle to knee)</span>
+                <span className="text-gray-500 text-[11px] font-medium">VAR 1 (Low Inundation)</span>
               </div>
             </>
           ) : activeHazard === 'landslide' ? (
@@ -621,19 +926,18 @@ export default function HazardMap({ isFullscreen = false }) {
                   <span className="w-5 h-1 rounded-full bg-red-600 shadow-xs" />
                   <span className="text-gray-800 font-bold">Active Fault Line</span>
                 </div>
-                <span className="text-red-700 text-[11px] font-bold">PHIVOLCS Trace</span>
+                <span className="text-red-700 text-[11px] font-bold">PHIVOLCS MCEM</span>
               </div>
               <div className="flex items-center justify-between py-0.5">
-                <span className="text-gray-500 font-medium">Primary System</span>
-                <span className="text-gray-800 font-bold">Central Cebu (CCFS)</span>
+                <div className="flex items-center gap-2">
+                  <span className="size-2.5 rounded-full bg-red-500 ring-2 ring-red-200" />
+                  <span className="text-gray-800 font-bold">Live Earthquakes</span>
+                </div>
+                <span className="text-gray-500 text-[11px] font-medium">USGS Real-time</span>
               </div>
               <div className="flex items-center justify-between py-0.5">
-                <span className="text-gray-500 font-medium">Total Active Traces</span>
-                <span className="text-gray-800 font-bold">7 Major Segments</span>
-              </div>
-              <div className="flex items-center justify-between py-0.5">
-                <span className="text-gray-500 font-medium">Cumulative Length</span>
-                <span className="text-gray-800 font-bold">~258.0 km</span>
+                <span className="text-gray-500 font-medium">Central Cebu System</span>
+                <span className="text-gray-800 font-bold">{faultSummary?.total_fault_segments || 6} Segments</span>
               </div>
             </>
           )}
@@ -654,13 +958,7 @@ export default function HazardMap({ isFullscreen = false }) {
             <Compass className="size-3 text-primary" /> Cebu Province GIS
           </span>
           <span className="text-primary font-bold">
-            {activeHazard === 'storm-surge'
-              ? `SSA ${activeSSA} Active`
-              : activeHazard === 'earthquake'
-              ? 'Active Faults Active'
-              : isSatellite
-              ? 'Satellite + Risk'
-              : 'Live Layer Active'}
+            {lastRefreshed ? `Live (${lastRefreshed})` : 'Live Stream Active'}
           </span>
         </div>
       </div>

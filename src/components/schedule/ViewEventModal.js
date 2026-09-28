@@ -10,15 +10,12 @@ import { supabase } from "@/supabase/util/supabase"
 
 export default function ViewEventModal({ isOpen, onClose, event, onRefresh }) {
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [error, setError] = useState("")
 
   if (!isOpen || !event) return null;
 
   const handleDelete = async () => {
-      // Optional browser confirm; can remove if you want instant delete
-      const confirmDelete = window.confirm("Are you sure you want to delete this event?");
-      if (!confirmDelete) return;
-
       setIsDeleting(true);
       setError("");
 
@@ -31,6 +28,7 @@ export default function ViewEventModal({ isOpen, onClose, event, onRefresh }) {
           if (deleteError) throw deleteError;
 
           if (onRefresh) onRefresh();
+          setShowDeleteConfirm(false);
           onClose();
       } catch (err) {
           console.error(err);
@@ -68,7 +66,7 @@ export default function ViewEventModal({ isOpen, onClose, event, onRefresh }) {
                     <div className="flex items-center gap-3 mb-1">
                         <CardHeader className="text-xl leading-tight font-black text-gray-800">{event.title}</CardHeader>
                         <button 
-                            onClick={handleDelete}
+                            onClick={() => setShowDeleteConfirm(true)}
                             disabled={isDeleting}
                             className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-100 rounded-full transition-colors focus:ring-2 focus:ring-red-100"
                             title="Delete Event"
@@ -138,6 +136,35 @@ export default function ViewEventModal({ isOpen, onClose, event, onRefresh }) {
                     )}
                 </div>
             </div>
+
+            {/* In-Modal Delete Confirmation Overlay */}
+            {showDeleteConfirm && (
+                <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-30 flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in-95 duration-200">
+                    <div className="p-3 bg-red-100 text-red-600 rounded-full mb-3 shadow-inner">
+                        <Trash className="size-6" />
+                    </div>
+                    <h4 className="text-base font-bold text-gray-900 mb-1">Delete Event?</h4>
+                    <p className="text-xs text-gray-500 mb-5 max-w-[260px] leading-relaxed">
+                        Are you sure you want to delete this event? This action cannot be undone.
+                    </p>
+                    <div className="flex gap-2.5 w-full max-w-[240px]">
+                        <button
+                            onClick={() => setShowDeleteConfirm(false)}
+                            disabled={isDeleting}
+                            className="flex-1 py-2.5 px-3 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all disabled:opacity-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleDelete}
+                            disabled={isDeleting}
+                            className="flex-1 py-2.5 px-3 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-md shadow-red-600/20 transition-all disabled:opacity-50"
+                        >
+                            {isDeleting ? "Deleting..." : "Yes, Delete"}
+                        </button>
+                    </div>
+                </div>
+            )}
         </GeneralCard>
     </FloatingModal>
   )

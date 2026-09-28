@@ -1,5 +1,6 @@
 import { Inter } from "next/font/google";
 import "@/assets/css/globals.css";
+import GlobalAlertModal from "@/components/Modal/GlobalAlertModal";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -30,6 +31,7 @@ export default function RootLayout({ children, modal }) {
       <body className={`${inter.className} min-h-full flex flex-col`}>
         {children}
         {modal}
+        <GlobalAlertModal />
       </body>
     </html>
   );

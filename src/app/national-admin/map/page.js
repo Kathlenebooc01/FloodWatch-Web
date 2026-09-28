@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, Suspense, lazy } from "react";
+import { useState, Suspense } from "react";
+import dynamic from 'next/dynamic';
 import MapsDocumentation from "@/components/maps/MapsDocumentation";
 import MapSkeleton from "@/components/skeleton/MapSkeleton";
 
-const Map = lazy(() => import("@/components/maps/Map"));
-const WeatherMap = lazy(() => import("@/components/maps/WeatherMap"));
+const Map = dynamic(() => import("@/components/maps/Map"), { ssr: false });
+const WeatherMap = dynamic(() => import("@/components/maps/WeatherMap"), { ssr: false });
 
 export default function Page() {
   const [activeTab, setActiveTab] = useState('Risk Mapping');

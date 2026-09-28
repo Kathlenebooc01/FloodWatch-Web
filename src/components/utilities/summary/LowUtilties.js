@@ -19,6 +19,15 @@ export default function LowUtilties() {
       setLowCount(count || 0)
     }
     fetchLowCount()
+
+    const channel = supabase
+      .channel('low-utilities-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'utilities' }, fetchLowCount)
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   return (

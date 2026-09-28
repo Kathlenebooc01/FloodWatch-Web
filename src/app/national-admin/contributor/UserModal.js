@@ -91,7 +91,8 @@ export default function UserModal({ invitationId, onClose }) {
   
   // Account Data to Display
   const email = profile?.email || invitation.official_email
-  const roleName = invitation.account_role === "lgu_headmaster" ? "LGU Headmaster" : invitation.account_role === "national_admin" ? "National Admin" : "Provincial Admin"
+  const roleMap = { national_admin: 'National Admin', provincial_admin: 'Provincial Admin', lgu_headmaster: 'LGU Headmaster', lgu_frontliner: 'LGU Frontliner', citizen: 'Citizen' };
+  const roleName = roleMap[invitation.account_role] || invitation.account_role;
   const orgName = profile?.organization_name || "Not specified"
   const phone = profile?.mobile_number || "Not specified"
   const joinedDate = profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : new Date(invitation.created_at).toLocaleDateString()

@@ -1,3 +1,5 @@
+"use client"
+import { useState } from "react"
 import TableScrollWrapper from "@/components/table/TableScrollWrapper"
 import Table from "@/components/table/Table"
 import DataTable from "@/components/table/DataTable"
@@ -7,8 +9,14 @@ import TableRow from "@/components/table/TableRow"
 import TableData from "@/components/table/TableData"
 import TableDataMuted from "@/components/table/TableDataMuted"
 import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
+import TablePagination from "@/components/table/TablePagination"
 
 export default function ExtractedTable({ data, isRendering }) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
+  const totalItems = data?.length || 0
+  const paginatedData = (data || []).slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+
   return (
     <Table className="w-full min-w-0 overflow-hidden">
       <TableScrollWrapper>
@@ -34,8 +42,8 @@ export default function ExtractedTable({ data, isRendering }) {
                   <TableData><SingleLineSkeleton /></TableData>
                 </TableRow>
               ))
-            ) : data && data.length > 0 ? (
-              data.map((item) => (
+            ) : paginatedData.length > 0 ? (
+              paginatedData.map((item) => (
                 <TableRow key={item.id}>
                   <TableData className="font-semibold text-gray-800">
                     {item.item_name || item.name || "N/A"}
@@ -64,6 +72,13 @@ export default function ExtractedTable({ data, isRendering }) {
           </tbody>
         </DataTable>
       </TableScrollWrapper>
+
+      <TablePagination 
+        currentPage={currentPage}
+        totalItems={totalItems}
+        itemsPerPage={itemsPerPage}
+        onPageChange={setCurrentPage}
+      />
     </Table>
   )
 }

@@ -26,6 +26,15 @@ export default function TotalUtilities() {
       setThisMonth(monthCount || 0)
     }
     fetchCounts()
+
+    const channel = supabase
+      .channel('total-utilities-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'utilities' }, fetchCounts)
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   return (

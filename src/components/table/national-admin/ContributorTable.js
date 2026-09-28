@@ -145,7 +145,17 @@ export default function ContributorTable({ title = "Contributors" }) {
         })))
       }
     }
+    
     fetchInvitations()
+
+    const channel = supabase
+      .channel('invitations-realtime-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invitations' }, fetchInvitations)
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   // Filter by tab + search

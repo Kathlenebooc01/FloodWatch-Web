@@ -31,7 +31,8 @@ export default function Form({ invitation }) {
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
 
-  const roleName = role === "lgu_headmaster" ? "LGU Headmaster" : "Provincial Admin"
+  const roleMap = { national_admin: 'National Admin', provincial_admin: 'Provincial Admin', lgu_headmaster: 'LGU Headmaster', lgu_frontliner: 'LGU Frontliner', citizen: 'Citizen' };
+  const roleName = roleMap[role] || role;
 
   const handleSubmit = async (e) => {
     e.preventDefault()

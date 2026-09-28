@@ -13,6 +13,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/supabase/util/supabase"
 import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
+import TablePagination from "@/components/table/TablePagination"
 
 const statusStyles = {
   Pending: 'summary-data-icon-yellow',
@@ -24,6 +25,8 @@ const statusStyles = {
 export default function RequestTable() {
   const [data, setData] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
   const router = useRouter()
 
   const fetchRequests = async (showLoading = true) => {
@@ -87,34 +90,36 @@ export default function RequestTable() {
                 </TableRow>
               ))
             ) : data.length > 0 ? (
-              data.map((item) => (
-                <TableRow key={item.request_id}>
-                  <TableData>{item.profiles?.full_name || 'Unknown'}</TableData>
-                  <TableDataMuted>{item.municipality_or_city?.name || 'N/A'}</TableDataMuted>
-                  <TableData>
-                    <span className={`${statusStyles[item.status] || ''} px-3 py-1 text-xs font-semibold capitalize`}>
-                      {item.status}
-                    </span>
-                  </TableData>
-                  <TableDataMuted className='truncate max-w-[200px]'>
-                    {new Date(item.created_at).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </TableDataMuted>
-                  <TableDataAction>
-                    <button
-                      onClick={() => router.push(`/provincial-admin/utilities/request/view-request?id=${item.request_id}`)}
-                      className="modal-icon-button"
-                    >
-                      <ChevronRight className="size-5"/>
-                    </button>
-                  </TableDataAction>
-                </TableRow>
-              ))
+              data
+                .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                .map((item) => (
+                  <TableRow key={item.request_id}>
+                    <TableData>{item.profiles?.full_name || 'Unknown'}</TableData>
+                    <TableDataMuted>{item.municipality_or_city?.name || 'N/A'}</TableDataMuted>
+                    <TableData>
+                      <span className={`${statusStyles[item.status] || ''} px-3 py-1 text-xs font-semibold capitalize`}>
+                        {(item.status || '').replace(/_/g, ' ')}
+                      </span>
+                    </TableData>
+                    <TableDataMuted className='truncate max-w-[200px]'>
+                      {new Date(item.created_at).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </TableDataMuted>
+                    <TableDataAction>
+                      <button
+                        onClick={() => router.push(`/provincial-admin/utilities/request/view-request?id=${item.request_id}`)}
+                        className="modal-icon-button"
+                      >
+                        <ChevronRight className="size-5"/>
+                      </button>
+                    </TableDataAction>
+                  </TableRow>
+                ))
             ) : (
               <tr>
                 <td colSpan={5} className="text-center py-10 text-gray-400 text-sm">No requests found</td>
@@ -123,6 +128,13 @@ export default function RequestTable() {
           </tbody>
         </DataTable>
       </TableScrollWrapper>
+
+      <TablePagination 
+        currentPage={currentPage}
+        totalItems={data.length}
+        itemsPerPage={itemsPerPage}
+        onPageChange={setCurrentPage}
+      />
     </Table>
   )
 }

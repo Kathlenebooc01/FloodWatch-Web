@@ -1,14 +1,15 @@
 "use client";
 
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import MapSkeleton from '@/components/skeleton/MapSkeleton';
 
-const Map = lazy(() => import('@/components/maps/Map'));
-const AirQualityMap = lazy(() => import('@/components/maps/AirQualityMap'));
-const HeatIndexMap = lazy(() => import('@/components/maps/HeatIndexMap'));
-const HazardMap = lazy(() => import('@/components/maps/HazardMap'));
-const WeatherMap = lazy(() => import('@/components/maps/WeatherMap'));
+const Map = dynamic(() => import('@/components/maps/Map'), { ssr: false });
+const AirQualityMap = dynamic(() => import('@/components/maps/AirQualityMap'), { ssr: false });
+const HeatIndexMap = dynamic(() => import('@/components/maps/HeatIndexMap'), { ssr: false });
+const HazardMap = dynamic(() => import('@/components/maps/HazardMap'), { ssr: false });
+const WeatherMap = dynamic(() => import('@/components/maps/WeatherMap'), { ssr: false });
 
 function FullscreenMapContent() {
   const searchParams = useSearchParams();

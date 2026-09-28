@@ -35,7 +35,8 @@ export async function createProfileAfterSignUp(profileData, invitationId) {
     }
 
     // 3. Send notification to national_admin
-    const roleName = profileData.role === "lgu_headmaster" ? "LGU Headmaster" : "Provincial Admin"
+    const roleMap = { national_admin: 'National Admin', provincial_admin: 'Provincial Admin', lgu_headmaster: 'LGU Headmaster', lgu_frontliner: 'LGU Frontliner', citizen: 'Citizen' };
+    const roleName = roleMap[profileData.role] || profileData.role;
     const { error: notifError } = await supabaseAdmin.from('notifications').insert([{
       user_id: profileData.id,
       title: 'New User Registered',

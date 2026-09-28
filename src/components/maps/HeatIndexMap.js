@@ -18,6 +18,7 @@ import CardHeader from '../cards/CardHeader';
 import CardSubHeader from '../cards/CardSubHeader';
 import SearchInput from '@/components/forms/SearchInput';
 import MapFilterDropdown from './MapFilterDropdown';
+import { getCachedMonitoringData, setCachedMonitoringData } from '@/lib/cache/monitoringCache';
 
 // ─── PAGASA Heat Index Categories & Guidelines ──────────────────────────────
 export const HEAT_INDEX_LEGEND = [
@@ -222,7 +223,7 @@ const DetailRow = ({ icon, label, value, unit = '', highlight = false }) => (
 );
 
 export default function HeatIndexMap({ isFullscreen = false }) {
-  const [heatData, setHeatData] = useState([]);
+  const [heatData, setHeatData] = useState(() => getCachedMonitoringData('heatData') || []);
   const [selectedMuni, setSelectedMuni] = useState(null);
   const [cursor, setCursor] = useState('auto');
   const [filterCategory, setFilterCategory] = useState('ALL');
@@ -237,7 +238,7 @@ export default function HeatIndexMap({ isFullscreen = false }) {
       try {
         const [munisRes, weatherRes] = await Promise.all([
           supabase.from('municipality_or_city').select('*'),
-          supabase.from('weather_telemetry').select('*').order('fetched_at', { ascending: false })
+          supabase.from('weather_telemetry').select('*').order('fetched_at', { ascending: false }).limit(100)
         ]);
 
         if (!isMounted) return;
@@ -297,6 +298,7 @@ export default function HeatIndexMap({ isFullscreen = false }) {
         if (!isMounted) return;
 
         setHeatData(merged);
+        setCachedMonitoringData('heatData', merged);
         setLastUpdated(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }));
 
         // Update active popup if open

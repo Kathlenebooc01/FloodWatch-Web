@@ -16,6 +16,7 @@ import CardSubHeader from "@/components/cards/CardSubHeader"
 import CardBasedText from "@/components/cards/CardBasedText"
 import SideModal from "@/components/Modal/SideModal"
 import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
+import TablePagination from "@/components/table/TablePagination"
 import { supabase } from "@/supabase/util/supabase"
 import { ChevronRight, X, ShieldAlert, CheckCircle2, AlertTriangle, MapPin, Calendar, MessageSquare, Check, Loader2 } from "lucide-react"
 
@@ -29,15 +30,26 @@ export default function LGUTable() {
   const [isLoadingDistress, setIsLoadingDistress] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Pagination State
+  const [reportPage, setReportPage] = useState(1)
+  const [distressPage, setDistressPage] = useState(1)
+  const itemsPerPage = 10
+
   // Modal & Selection State
   const [selectedSignal, setSelectedSignal] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedReport, setSelectedReport] = useState(null)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
 
   // Dropdown Filter State for Distress Signals
   const [statusFilter, setStatusFilter] = useState("All")
   const [isFilterOpen, setIsFilterOpen] = useState(false)
 
-  // 1. Fetch Dynamic Reports (Ready_For_LGU status only) + Municipality Names
+  useEffect(() => {
+    setDistressPage(1)
+  }, [statusFilter])
+
+  // 1. Fetch Dynamic Reports (All reports) + Municipality Names
   const fetchReports = async (showLoading = true) => {
     if (showLoading) setIsLoadingReports(true);
 
@@ -45,13 +57,12 @@ export default function LGUTable() {
       supabase
         .from("incident_report")
         .select("*")
-        .eq("status", "Ready_For_LGU")
         .order("created_at", { ascending: false }),
       supabase.from("municipality_or_city").select("*")
     ]);
 
     if (reportsRes.error) {
-      console.error("🚨 Error fetching Ready_For_LGU reports:", reportsRes.error.message);
+      console.error("🚨 Error fetching reports:", reportsRes.error.message);
     }
 
     const reportItems = reportsRes.data || [];
@@ -150,7 +161,6 @@ export default function LGUTable() {
     return item.status?.toLowerCase() === statusFilter.toLowerCase();
   });
 
-  // Handler for opening distress signal details in side modal
   const handleOpenModal = (item) => {
     setSelectedSignal(item);
     setIsModalOpen(true);
@@ -159,6 +169,16 @@ export default function LGUTable() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedSignal(null);
+  };
+
+  const handleOpenReportModal = (item) => {
+    setSelectedReport(item);
+    setIsReportModalOpen(true);
+  };
+
+  const handleCloseReportModal = () => {
+    setIsReportModalOpen(false);
+    setSelectedReport(null);
   };
 
   // Handler for live database status transition in Side Modal (Pending -> Acknowledged -> Resolved)
@@ -194,17 +214,57 @@ export default function LGUTable() {
     }
   };
 
-  // Status Badge Helper for Distress Signals (No animation on Pending)
+  // Status Badge Helper for Distress Signals (Cleans all underscores)
   const getDistressStatusBadge = (status) => {
-    switch (status?.toLowerCase()) {
+    const raw = status || "Pending";
+    const clean = raw.replace(/_/g, " ");
+    switch (clean.toLowerCase()) {
       case "resolved":
         return <span className="bg-green-500/10 text-green-700 border border-green-200 px-3 py-1 rounded-full text-xs font-semibold tracking-wide">Resolved</span>;
       case "acknowledged":
         return <span className="bg-blue-500/10 text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-xs font-semibold tracking-wide">Acknowledged</span>;
       case "pending":
       default:
-        return <span className="bg-amber-500/10 text-amber-700 border border-amber-200 px-3 py-1 rounded-full text-xs font-semibold tracking-wide">Pending</span>;
+        return <span className="bg-amber-500/10 text-amber-700 border border-amber-200 px-3 py-1 rounded-full text-xs font-semibold tracking-wide">{clean}</span>;
     }
+  };
+
+  // Status Badge Helper for Reports (Cleans all underscores like Pending_AI -> Pending AI)
+  const getReportStatusBadge = (status) => {
+    const raw = status || "Pending";
+    const clean = raw.replace(/_/g, " ");
+    const s = clean.toLowerCase();
+
+    if (s.includes("verified") || s.includes("resolved") || s.includes("approved") || s.includes("completed")) {
+      return (
+        <span className="bg-green-500/10 text-green-700 border border-green-200 px-3 py-1 rounded-full text-xs font-semibold tracking-wide inline-flex items-center gap-1.5 shadow-xs">
+          <span className="size-1.5 rounded-full bg-green-500" />
+          {clean}
+        </span>
+      );
+    }
+    if (s.includes("pending") || s.includes("ai") || s.includes("review")) {
+      return (
+        <span className="bg-amber-500/10 text-amber-700 border border-amber-200 px-3 py-1 rounded-full text-xs font-semibold tracking-wide inline-flex items-center gap-1.5 shadow-xs">
+          <span className="size-1.5 rounded-full bg-amber-500" />
+          {clean}
+        </span>
+      );
+    }
+    if (s.includes("ready") || s.includes("lgu")) {
+      return (
+        <span className="summary-data-icon-purple px-3 py-1 text-xs font-semibold rounded-full border border-purple-200/60 inline-flex items-center gap-1.5 shadow-xs">
+          <span className="size-1.5 rounded-full bg-purple-600 animate-pulse" />
+          {clean}
+        </span>
+      );
+    }
+    return (
+      <span className="bg-blue-500/10 text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-xs font-semibold tracking-wide inline-flex items-center gap-1.5 shadow-xs">
+        <span className="size-1.5 rounded-full bg-blue-500" />
+        {clean}
+      </span>
+    );
   };
 
   return (
@@ -286,13 +346,15 @@ export default function LGUTable() {
         <TableScrollWrapper>
           <DataTable>
             {activeTab === "Report Table" ? (
-              // ── 1. REPORT TABLE (Ready_For_LGU Only | No Action Column) ──
+              // ── 1. REPORT TABLE (All Reports with formatted status and action modal) ──
               <>
                 <TableHead>
                   <tr>
                     <Th>Municipality/City</Th>
+                    <Th>Hazard / Type</Th>
                     <Th>Created At</Th>
                     <Th>Status</Th>
+                    <Th className="text-right">Action</Th>
                   </tr>
                 </TableHead>
                 <tbody>
@@ -302,33 +364,46 @@ export default function LGUTable() {
                         <TableData><SingleLineSkeleton /></TableData>
                         <TableData><SingleLineSkeleton /></TableData>
                         <TableData><SingleLineSkeleton /></TableData>
+                        <TableData><SingleLineSkeleton /></TableData>
+                        <TableDataAction><div style={{ width: "32px", height: "32px" }} /></TableDataAction>
                       </TableRow>
                     ))
                   ) : reports.length > 0 ? (
-                    reports.map((item) => (
-                      <TableRow key={item.report_id || Math.random()}>
-                        <TableData className="font-bold text-gray-800">{item.municipality_name}</TableData>
-                        <TableDataMuted className="truncate max-w-[200px]">
-                          {item.created_at ? new Date(item.created_at).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          }) : "—"}
-                        </TableDataMuted>
-                        <TableData>
-                          <span className="summary-data-icon-purple px-3 py-1 text-xs font-semibold rounded-full border border-purple-200/60 inline-flex items-center gap-1.5 shadow-xs">
-                            <span className="size-1.5 rounded-full bg-purple-600 animate-pulse" />
-                            {(item.status || "Ready_For_LGU").replace(/_/g, " ")}
-                          </span>
-                        </TableData>
-                      </TableRow>
-                    ))
+                    reports
+                      .slice((reportPage - 1) * itemsPerPage, reportPage * itemsPerPage)
+                      .map((item) => (
+                        <TableRow key={item.report_id || Math.random()}>
+                          <TableData className="font-bold text-gray-800">{item.municipality_name}</TableData>
+                          <TableData className="text-gray-700 font-medium capitalize">
+                            {(item.hazard_type || item.report_type || "Incident").replace(/_/g, " ")}
+                          </TableData>
+                          <TableDataMuted className="truncate max-w-[200px]">
+                            {item.created_at ? new Date(item.created_at).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            }) : "—"}
+                          </TableDataMuted>
+                          <TableData>
+                            {getReportStatusBadge(item.status)}
+                          </TableData>
+                          <TableDataAction>
+                            <button
+                              onClick={() => handleOpenReportModal(item)}
+                              className="modal-icon-button"
+                              aria-label="View Report Details"
+                            >
+                              <ChevronRight className="size-5 text-gray-500" />
+                            </button>
+                          </TableDataAction>
+                        </TableRow>
+                      ))
                   ) : (
                     <TableRow>
-                      <TableDataMuted colSpan={3} className="text-center py-12">
-                        No reports ready for LGU action at this time.
+                      <TableDataMuted colSpan={5} className="text-center py-12">
+                        No reports recorded at this time.
                       </TableDataMuted>
                     </TableRow>
                   )}
@@ -358,31 +433,33 @@ export default function LGUTable() {
                       </TableRow>
                     ))
                   ) : displayedDistressSignals.length > 0 ? (
-                    displayedDistressSignals.map((item) => (
-                      <TableRow key={item.distress_id || Math.random()}>
-                        <TableData className="font-bold text-gray-800">{item.lgu_name}</TableData>
-                        <TableDataMuted>{item.municipality_name}</TableDataMuted>
-                        <TableDataMuted>
-                          {item.created_at ? new Date(item.created_at).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          }) : "—"}
-                        </TableDataMuted>
-                        <TableData>{getDistressStatusBadge(item.status)}</TableData>
-                        <TableDataAction>
-                          <button
-                            onClick={() => handleOpenModal(item)}
-                            className="modal-icon-button"
-                            aria-label="View Distress Details"
-                          >
-                            <ChevronRight className="size-5 text-gray-500" />
-                          </button>
-                        </TableDataAction>
-                      </TableRow>
-                    ))
+                    displayedDistressSignals
+                      .slice((distressPage - 1) * itemsPerPage, distressPage * itemsPerPage)
+                      .map((item) => (
+                        <TableRow key={item.distress_id || Math.random()}>
+                          <TableData className="font-bold text-gray-800">{item.lgu_name}</TableData>
+                          <TableDataMuted>{item.municipality_name}</TableDataMuted>
+                          <TableDataMuted>
+                            {item.created_at ? new Date(item.created_at).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            }) : "—"}
+                          </TableDataMuted>
+                          <TableData>{getDistressStatusBadge(item.status)}</TableData>
+                          <TableDataAction>
+                            <button
+                              onClick={() => handleOpenModal(item)}
+                              className="modal-icon-button"
+                              aria-label="View Distress Details"
+                            >
+                              <ChevronRight className="size-5 text-gray-500" />
+                            </button>
+                          </TableDataAction>
+                        </TableRow>
+                      ))
                   ) : (
                     <TableRow>
                       <TableDataMuted colSpan={5} className="text-center py-12">
@@ -397,6 +474,22 @@ export default function LGUTable() {
             )}
           </DataTable>
         </TableScrollWrapper>
+
+        {activeTab === "Report Table" ? (
+          <TablePagination
+            currentPage={reportPage}
+            totalItems={reports.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setReportPage}
+          />
+        ) : (
+          <TablePagination
+            currentPage={distressPage}
+            totalItems={displayedDistressSignals.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setDistressPage}
+          />
+        )}
       </Table>
 
       {/* ── Side Modal for Distress Signal Action ── */}
@@ -519,6 +612,107 @@ export default function LGUTable() {
                 )}
               </div>
 
+            </div>
+          </SideModal>
+        </>
+      )}
+      {/* ── Side Modal for Incident Report Details ── */}
+      {isReportModalOpen && selectedReport && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-xs" onClick={handleCloseReportModal} />
+          
+          <SideModal className="z-50 !w-[350px] md:!w-[420px]">
+            <div className="p-6 flex flex-col h-full bg-white justify-between">
+              <div>
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-5">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="size-5 text-primary shrink-0" />
+                    <CardSubHeader className="!mb-0 font-extrabold text-gray-800">
+                      Incident Report Details
+                    </CardSubHeader>
+                  </div>
+                  <button onClick={handleCloseReportModal} className="modal-icon-button bg-gray-100 hover:bg-gray-200">
+                    <X className="size-5 text-gray-600" />
+                  </button>
+                </div>
+
+                {/* Body Details */}
+                <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+                  {/* Primary Info Box */}
+                  <div className="bg-gray-50/80 p-4 rounded-2xl border border-gray-200/80 space-y-3">
+                    <div>
+                      <CardBasedText className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                        Hazard / Event Type
+                      </CardBasedText>
+                      <div className="text-base font-extrabold text-gray-900 capitalize">
+                        {(selectedReport.hazard_type || selectedReport.report_type || "Incident Report").replace(/_/g, " ")}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-200/60">
+                      <div>
+                        <CardBasedText className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                          Municipality/City
+                        </CardBasedText>
+                        <div className="text-sm font-bold text-gray-800 flex items-center gap-1">
+                          <MapPin className="size-3.5 text-primary" /> {selectedReport.municipality_name}
+                        </div>
+                      </div>
+                      <div>
+                        <CardBasedText className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                          Report Status
+                        </CardBasedText>
+                        <div className="mt-0.5">
+                          {getReportStatusBadge(selectedReport.status)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Image Attachment if available */}
+                  {selectedReport.image_url && (
+                    <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-100 max-h-48 relative">
+                      <img 
+                        src={selectedReport.image_url} 
+                        alt="Report attachment" 
+                        className="w-full h-full object-cover max-h-48"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Description Box */}
+                  <div>
+                    <CardBasedText className="text-xs font-extrabold text-gray-700 uppercase tracking-wider mb-2">
+                      Description & Situation
+                    </CardBasedText>
+                    <div className="bg-gray-50 text-gray-800 p-4 rounded-xl border border-gray-200/80 text-sm leading-relaxed">
+                      {selectedReport.description || "No description provided."}
+                    </div>
+                  </div>
+
+                  {/* Timestamp */}
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-xs flex items-center justify-between text-gray-600">
+                    <span className="flex items-center gap-1.5 font-semibold">
+                      <Calendar className="size-3.5 text-gray-400" /> Reported At:
+                    </span>
+                    <span className="font-bold text-gray-800">
+                      {selectedReport.created_at ? new Date(selectedReport.created_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Unknown"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <div className="pt-4 mt-4 border-t border-gray-100">
+                <button
+                  onClick={handleCloseReportModal}
+                  className="w-full py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-extrabold text-sm transition-all"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </SideModal>
         </>

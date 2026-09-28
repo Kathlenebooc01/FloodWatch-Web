@@ -12,6 +12,7 @@ import { supabase } from "@/supabase/util/supabase"
 export default function Page() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState(null)
   const [formData, setFormData] = useState({
     name: "",
     type: "",
@@ -30,6 +31,7 @@ export default function Page() {
   const handleSubmit = async () => {
     if (!isFormValid) return
     setIsSubmitting(true)
+    setErrorMessage(null)
     try {
       const { data: { user } } = await supabase.auth.getUser()
 
@@ -50,7 +52,7 @@ export default function Page() {
       router.push('/provincial-admin/utilities/inventory')
     } catch (error) {
       console.error("Error submitting utility:", error)
-      alert("Failed to add utility.")
+      setErrorMessage(error.message || "Failed to add utility.")
     } finally {
       setIsSubmitting(false)
     }
@@ -74,6 +76,11 @@ export default function Page() {
                 </PrimaryButton>
             </div>
         </div>
+        {errorMessage && (
+          <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl font-medium">
+            {errorMessage}
+          </div>
+        )}
         <GeneralCard>
             <AddUtilForms formData={formData} setFormData={setFormData} />
         </GeneralCard>

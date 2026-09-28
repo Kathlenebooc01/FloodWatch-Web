@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { extractSpreadsheet, extractPlainText, extractMultimodal } from '@/lib/lantaw/extractors';
 import { cleanseAndFilterItems } from '@/lib/lantaw/cleanser';
+import { logAiError, logAiSuccess } from '@/lib/logs/apiLogger';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.NEXT_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -79,6 +80,7 @@ export async function POST(request) {
     }
 
     if (extractionResult.error) {
+      await logAiError("Lantaw Extract", extractionResult.error, { fileName, ext });
       return NextResponse.json({ error: extractionResult.error }, { status: 400 });
     }
 
@@ -94,6 +96,8 @@ export async function POST(request) {
       size_bytes: buffer.length,
       size_readable: formatBytes(buffer.length),
     };
+
+    await logAiSuccess("Lantaw Extract", `Extracted ${cleansingResult.cleaned_items?.length || 0} items from ${fileName}`);
 
     // ── 3. Return JSON in exact format consumed by frontend ─────────────────
     return NextResponse.json({
@@ -111,6 +115,7 @@ export async function POST(request) {
 
   } catch (err) {
     console.error("Lantaw Extract API Error:", err);
+    await logAiError("Lantaw Extract", err.message || "An internal error occurred during extraction.");
     return NextResponse.json({
       error: err.message || "An internal error occurred during extraction."
     }, { status: 500 });

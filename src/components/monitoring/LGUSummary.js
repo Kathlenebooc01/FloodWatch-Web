@@ -16,16 +16,16 @@ export default function LGUSummary() {
     if (showLoading) setIsLoading(true);
 
     const [reportsRes, distressRes] = await Promise.all([
-      // Fetch exact count of incident_report with Ready_For_LGU (checking common casing variations)
+      // Fetch count of pending incident reports (Pending_AI, Ready_For_LGU, etc.)
       supabase
         .from("incident_report")
-        .select("report_id", { count: "exact" })
-        .in("status", ["Ready_For_LGU", "Ready_for_LGU", "ready_for_lgu"]),
+        .select("report_id", { count: "exact", head: true })
+        .in("status", ["Ready_For_LGU", "Ready_for_LGU", "ready_for_lgu", "Pending_AI", "pending_ai", "Pending", "pending"]),
 
       // Fetch exact count of distress_signals with Pending status
       supabase
         .from("distress_signals")
-        .select("distress_id", { count: "exact" })
+        .select("distress_id", { count: "exact", head: true })
         .in("status", ["Pending", "pending", "PENDING"]),
     ]);
 
@@ -75,7 +75,7 @@ export default function LGUSummary() {
       <GeneralCard className="p-5 grid gap-5 border border-gray-100 shadow-xs hover:shadow-md transition-shadow">
         <div className="flex justify-between items-center">
           <CardSubHeader className="text-gray-500 font-extrabold uppercase tracking-wider !mb-0">
-            Pending Report
+            Pending Utility Report
           </CardSubHeader>
           <div className="summary-data-icon-orange shadow-xs">
             <MessageSquare className="size-5" />
@@ -90,7 +90,7 @@ export default function LGUSummary() {
             </CardHeader>
           )}
           <CardBasedText className="text-amber-500 font-bold text-xs mt-0.5">
-            LGU with pending report (Ready For LGU)
+            LGU with pending reports
           </CardBasedText>
         </div>
       </GeneralCard>

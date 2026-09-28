@@ -39,10 +39,15 @@ import { useState, useEffect } from "react"
 import { supabase } from "@/supabase/util/supabase"
 import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
 import { format } from "date-fns"
+import DeleteUtilConfirmationModal from "./table-modal/DeleteUtilConfirmationModal"
+import TablePagination from "@/components/table/TablePagination"
+import UtilityTypeSelect from "@/components/forms/UtilityTypeSelect"
 
 export default function IndependentInventory() {
   const [items, setItems] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState(null)
   const [selectedItem, setSelectedItem] = useState(null)
   
   const [isDeleting, setIsDeleting] = useState(false)
@@ -53,9 +58,14 @@ export default function IndependentInventory() {
   const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm)
+      setCurrentPage(1)
     }, 3000)
 
     return () => {
@@ -145,19 +155,20 @@ export default function IndependentInventory() {
     setIsEditing(false)
   }
 
-  const handleDelete = async (itemId) => {
-    const confirmDelete = window.confirm("Are you sure you want to delete this item from PDRRMO inventory?")
-    if (!confirmDelete) return
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return
 
     setIsDeleting(true)
     try {
       const { error } = await supabase
         .from('pdrrmo_inventory')
         .delete()
-        .eq('item_id', itemId)
+        .eq('item_id', itemToDelete)
 
       if (error) throw error
 
+      setIsDeleteModalOpen(false)
+      setItemToDelete(null)
       setSelectedItem(null)
       fetchPdrrmoInventory()
     } catch (err) {
@@ -244,6 +255,8 @@ export default function IndependentInventory() {
   const purchasedDateObj = editForm.purchased_date ? new Date(editForm.purchased_date) : null
   const expirationDateObj = editForm.expiration_date ? new Date(editForm.expiration_date) : null
 
+  const paginatedItems = filteredItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+
   return (
     <Table className="w-full min-w-0 overflow-hidden">
       {/* Search Input Bar with 3s Debouncing */}
@@ -284,8 +297,8 @@ export default function IndependentInventory() {
                   <TableDataAction><SingleLineSkeleton /></TableDataAction>
                 </TableRow>
               ))
-            ) : filteredItems.length > 0 ? (
-              filteredItems.map((item) => {
+            ) : paginatedItems.length > 0 ? (
+              paginatedItems.map((item) => {
                 const controlTags = parseControlNumbers(item.control_number)
                 const stockPill = getStockStatusPill(item.available_quantity)
 
@@ -344,6 +357,13 @@ export default function IndependentInventory() {
           </tbody>
         </DataTable>
       </TableScrollWrapper>
+
+      <TablePagination 
+        currentPage={currentPage}
+        totalItems={filteredItems.length}
+        itemsPerPage={itemsPerPage}
+        onPageChange={setCurrentPage}
+      />
 
       {/* Side Modal */}
       {selectedItem && (
@@ -406,9 +426,10 @@ export default function IndependentInventory() {
                     />
                   </div>
                   <div className="grid gap-1">
-                    <CardBasedText className="text-xs text-gray-700 font-semibold">Item Type</CardBasedText>
-                    <GeneralInput 
+                    <CardBasedText className="text-xs text-gray-700 font-semibold">Utility / Item Type</CardBasedText>
+                    <UtilityTypeSelect 
                       value={editForm.item_type} 
+                      placeholder="Select or add utility type..."
                       onChange={(e) => setEditForm(prev => ({ ...prev, item_type: e.target.value }))} 
                     />
                   </div>
@@ -654,12 +675,15 @@ export default function IndependentInventory() {
             ) : (
               <>
                 <button
-                  onClick={() => handleDelete(selectedItem.item_id)}
+                  onClick={() => {
+                    setItemToDelete(selectedItem.item_id)
+                    setIsDeleteModalOpen(true)
+                  }}
                   disabled={isDeleting}
                   className="px-3 py-1.5 text-xs text-red-500 font-semibold hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <Trash2 className="size-4" />
-                  <span>{isDeleting ? "Deleting..." : "Delete"}</span>
+                  <span>Delete</span>
                 </button>
 
                 <PrimaryButton 
@@ -673,6 +697,17 @@ export default function IndependentInventory() {
             )}
           </div>
         </SideModal>
+      )}
+
+      {isDeleteModalOpen && (
+        <DeleteUtilConfirmationModal
+          onCancel={() => {
+            setIsDeleteModalOpen(false)
+            setItemToDelete(null)
+          }}
+          onConfirm={handleConfirmDelete}
+          isDeleting={isDeleting}
+        />
       )}
     </Table>
   )

@@ -9,6 +9,7 @@ import GeneralCard from '../cards/GeneralCard';
 import CardHeader from '../cards/CardHeader';
 import CardSubHeader from '../cards/CardSubHeader';
 import CardBasedText from '../cards/CardBasedText';
+import { getCachedMonitoringData, setCachedMonitoringData } from '@/lib/cache/monitoringCache';
 
 // ─── Layer Style Definitions for GPU Canvas Rendering ──────────────────────
 const pinCircleLayer = {
@@ -89,17 +90,18 @@ const extractCoordinates = (report, muni, specificLoc) => {
 // ─── Status Badge Helper ──────────────────────────────────────────────────────
 const getStatusBadge = (status) => {
   if (!status) return { label: 'Reported', color: 'text-gray-700', bg: 'bg-gray-100', border: 'border-gray-200' };
-  const s = status.toLowerCase();
-  if (s === 'resolved' || s === 'verified' || s === 'completed' || s === 'approved') {
-    return { label: status, color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' };
+  const clean = String(status).replace(/_/g, ' ');
+  const s = clean.toLowerCase();
+  if (s.includes('resolved') || s.includes('verified') || s.includes('completed') || s.includes('approved')) {
+    return { label: clean, color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' };
   }
-  if (s === 'pending' || s === 'under review' || s === 'in progress' || s === 'investigating') {
-    return { label: status, color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-200' };
+  if (s.includes('pending') || s.includes('ai') || s.includes('under review') || s.includes('in progress') || s.includes('investigating')) {
+    return { label: clean, color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-200' };
   }
-  if (s === 'rejected' || s === 'false alarm' || s === 'dismissed' || s === 'critical' || s === 'emergency') {
-    return { label: status, color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200' };
+  if (s.includes('rejected') || s.includes('false alarm') || s.includes('dismissed') || s.includes('critical') || s.includes('emergency')) {
+    return { label: clean, color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200' };
   }
-  return { label: status, color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' };
+  return { label: clean, color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' };
 };
 
 // ─── Popup Row helper ────────────────────────────────────────────────────────
@@ -116,7 +118,7 @@ const Row = ({ icon, label, value }) => (
 );
 
 export default function ReportMapTracker() {
-  const [incidents, setIncidents] = useState([]);
+  const [incidents, setIncidents] = useState(() => getCachedMonitoringData('incidentReports') || []);
   const [selectedReport, setSelectedReport] = useState(null);
   const [cursor, setCursor] = useState('auto');
 
@@ -124,7 +126,7 @@ export default function ReportMapTracker() {
     // 1. Fetch incident reports along with municipality and potential specific location tables
     const fetchData = async () => {
       const [incidentsRes, munisRes, specRes, specPluralRes] = await Promise.all([
-        supabase.from('incident_report').select('*').order('created_at', { ascending: false }),
+        supabase.from('incident_report').select('*').order('created_at', { ascending: false }).limit(100),
         supabase.from('municipality_or_city').select('*'),
         supabase.from('specific_location').select('*').then(r => r.error ? { data: [] } : r),
         supabase.from('specific_locations').select('*').then(r => r.error ? { data: [] } : r)
@@ -179,6 +181,7 @@ export default function ReportMapTracker() {
 
       console.log("📍 [ReportMapTracker Debug] Loaded incidents:", processed.length, "| Displayable pins:", processed.filter(p => p.latitude != null && p.longitude != null).length, processed);
       setIncidents(processed);
+      setCachedMonitoringData('incidentReports', processed);
     };
 
     fetchData();
@@ -305,7 +308,7 @@ export default function ReportMapTracker() {
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="size-5 text-maroon shrink-0" style={{ color: '#800000' }} />
                   <CardHeader className="text-gray-800 capitalize text-lg font-extrabold truncate">
-                    {selectedReport.hazard_type || "Incident Report"}
+                    {(selectedReport.hazard_type || "Incident Report").replace(/_/g, " ")}
                   </CardHeader>
                 </div>
                 <CardBasedText className="text-gray-400 text-xs flex items-center gap-1 mt-0.5">

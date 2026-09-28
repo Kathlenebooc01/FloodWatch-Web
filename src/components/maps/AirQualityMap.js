@@ -11,6 +11,7 @@ import CardSubHeader from '../cards/CardSubHeader';
 import CardBasedText from '../cards/CardBasedText';
 import SearchInput from '@/components/forms/SearchInput';
 import MapFilterDropdown from './MapFilterDropdown';
+import { getCachedMonitoringData, setCachedMonitoringData } from '@/lib/cache/monitoringCache';
 
 // ─── USA AQI Layer Style Definitions for GPU Canvas Rendering ────────────────
 const pinCircleLayer = {
@@ -240,7 +241,7 @@ const Row = ({ icon, label, value, unit = '' }) => (
 );
 
 export default function AirQualityMap({ isFullscreen = false }) {
-  const [airData, setAirData] = useState([]);
+  const [airData, setAirData] = useState(() => getCachedMonitoringData('airData') || []);
   const [selectedMuni, setSelectedMuni] = useState(null);
   const [cursor, setCursor] = useState('auto');
   const [searchQuery, setSearchQuery] = useState('');
@@ -254,8 +255,8 @@ export default function AirQualityMap({ isFullscreen = false }) {
       try {
         const [munisRes, airRes, weatherRes] = await Promise.all([
           supabase.from('municipality_or_city').select('*'),
-          supabase.from('air_quality').select('*').order('recorded_at', { ascending: false }).order('created_at', { ascending: false }),
-          supabase.from('weather_telemetry').select('*').order('fetched_at', { ascending: false })
+          supabase.from('air_quality').select('*').order('recorded_at', { ascending: false }).limit(100),
+          supabase.from('weather_telemetry').select('*').order('fetched_at', { ascending: false }).limit(100)
         ]);
 
         if (!isMounted) return;
@@ -320,6 +321,7 @@ export default function AirQualityMap({ isFullscreen = false }) {
         if (!isMounted) return;
 
         setAirData(mergedData);
+        setCachedMonitoringData('airData', mergedData);
 
         // Keep selected municipality popup details updated in real-time
         setSelectedMuni((prev) => {

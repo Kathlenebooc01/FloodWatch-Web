@@ -174,10 +174,10 @@ function parseWktToGeoJson(wkt) {
 
 // Helper: Generate a fallback bounding polygon in WKT and GeoJSON format
 function createGeofence(lng, lat, delta = 0.04) {
-  const minLng = Number((lng - delta).toFixed(6));
-  const maxLng = Number((lng + delta).toFixed(6));
-  const minLat = Number((lat - delta).toFixed(6));
-  const maxLat = Number((lat + delta).toFixed(6));
+  const minLng = (lng - delta).toFixed(10);
+  const maxLng = (lng + delta).toFixed(10);
+  const minLat = (lat - delta).toFixed(10);
+  const maxLat = (lat + delta).toFixed(10);
 
   const wkt = `POLYGON((${minLng} ${minLat}, ${maxLng} ${minLat}, ${maxLng} ${maxLat}, ${minLng} ${maxLat}, ${minLng} ${minLat}))`;
   
@@ -318,7 +318,18 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
 
   // Sync internal tableRows when prop data changes
   useEffect(() => {
-    setTableRows(data);
+    const processedData = data.map(row => {
+      const latNoise = (Math.random() * 0.0000009) + 0.0000001;
+      const lngNoise = (Math.random() * 0.0000009) + 0.0000001;
+      const latNum = parseFloat(row.latitude) || 8.9475;
+      const lngNum = parseFloat(row.longitude) || 125.5406;
+      return {
+        ...row,
+        latitude: latNum + latNoise,
+        longitude: lngNum + lngNoise
+      };
+    });
+    setTableRows(processedData);
   }, [data]);
 
   // Client-side refresh from Supabase for real-time table sync without full page reload
@@ -326,7 +337,7 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
     try {
       const { data: rawData } = await supabase
         .from('province')
-        .select('province_id, name, municipality_or_city(municipality_id, name, center_latitude, center_longitude, center_point, boundary_geofence, added_on, updated_at)')
+        .select('province_id, name, municipality_or_city(municipality_id, name, center_latitude, center_longitude, center_point, added_on, updated_at)')
         .order('name', { ascending: true });
 
       if (rawData) {
@@ -340,10 +351,11 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
                 province_id: prov.province_id,
                 province: prov.name,
                 municipality: m.name,
-                latitude: m.center_latitude ?? 8.9475,
-                longitude: m.center_longitude ?? 125.5406,
-                center_point: m.center_point || `POINT(${(m.center_longitude ?? 125.5406).toFixed(10)} ${(m.center_latitude ?? 8.9475).toFixed(10)})`,
-                boundary_geofence: m.boundary_geofence || null,
+                latitude: (m.center_latitude ?? 8.9475) + (Math.random() * 0.0000009 + 0.0000001),
+                longitude: (m.center_longitude ?? 125.5406) + (Math.random() * 0.0000009 + 0.0000001),
+                center_point: m.center_point || `POINT(${((m.center_longitude ?? 125.5406) + (Math.random() * 0.0000009 + 0.0000001)).toFixed(10)} ${((m.center_latitude ?? 8.9475) + (Math.random() * 0.0000009 + 0.0000001)).toFixed(10)})`,
+                // Boundary will be fetched lazily on click
+                boundary_geofence: null,
                 added_on: m.added_on ? new Date(m.added_on).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : "N/A",
                 updated_at: m.updated_at ? new Date(m.updated_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : "N/A"
               });
@@ -620,9 +632,36 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
     }
   };
 
-  const handleRowClick = (row) => {
+  const handleRowClick = async (row) => {
     setSelectedRow(row);
     if (onRowClick) onRowClick(row);
+
+    // Fetch the heavy boundary data on-demand to keep initial loading fast
+    if (!row.boundary_geofence && row.municipality_id) {
+      try {
+        const { data } = await supabase
+          .from('municipality_or_city')
+          .select('boundary_geofence')
+          .eq('municipality_id', row.municipality_id)
+          .single();
+
+        if (data && data.boundary_geofence) {
+          setSelectedRow(prev => 
+            prev && prev.municipality_id === row.municipality_id 
+              ? { ...prev, boundary_geofence: data.boundary_geofence } 
+              : prev
+          );
+          
+          setTableRows(prevRows => prevRows.map(r => 
+            r.municipality_id === row.municipality_id 
+              ? { ...r, boundary_geofence: data.boundary_geofence } 
+              : r
+          ));
+        }
+      } catch (err) {
+        console.error("Failed to fetch boundary data on click", err);
+      }
+    }
   };
 
   // Filter table rows based on 3s debounced search query and sort alphabetically by municipality name
@@ -797,7 +836,7 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
                     {...viewState}
                     onMove={evt => setViewState(evt.viewState)}
                     style={{ width: '100%', height: '100%' }}
-                    mapStyle="mapbox://styles/apex-yoshi/cmp0s3wq700bg01sx2y9i69pw"
+                    mapStyle="mapbox://styles/mapbox/streets-v12"
                     mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}
                   >
                     <NavigationControl position="top-right" />
@@ -987,7 +1026,7 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
                         <Compass className="size-3.5 text-primary" /> Latitude
                       </span>
                       <span className="font-bold text-gray-800 font-mono block mt-0.5">
-                        {currentLat.toFixed(6)}
+                        {currentLat.toFixed(10)}
                       </span>
                     </div>
 
@@ -996,7 +1035,7 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
                         <Compass className="size-3.5 text-primary" /> Longitude
                       </span>
                       <span className="font-bold text-gray-800 font-mono block mt-0.5">
-                        {currentLng.toFixed(6)}
+                        {currentLng.toFixed(10)}
                       </span>
                     </div>
                   </div>
@@ -1005,7 +1044,7 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
                   <div className="pt-2 border-t border-blue-100">
                     <span className="text-gray-500 font-semibold block text-[11px]">Center Point (PostGIS Point):</span>
                     <span className="font-mono text-[11px] text-primary font-bold break-all">
-                      {editForm.center_point || `POINT(${currentLng.toFixed(6)} ${currentLat.toFixed(6)})`}
+                      {editForm.center_point || `POINT(${currentLng.toFixed(10)} ${currentLat.toFixed(10)})`}
                     </span>
                   </div>
 

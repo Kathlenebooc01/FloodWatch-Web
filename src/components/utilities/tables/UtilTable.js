@@ -14,11 +14,16 @@ import { useState, useEffect } from "react"
 import { supabase } from "@/supabase/util/supabase"
 import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
 import UtilTableModal from "./table-modal/UtilTableModal"
+import TablePagination from "@/components/table/TablePagination"
 
 export default function UtilTable() {
   const [data, setData] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedItem, setSelectedItem] = useState(null)
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Search and 3-second debouncing state
   const [searchTerm, setSearchTerm] = useState("")
@@ -33,6 +38,11 @@ export default function UtilTable() {
       clearTimeout(timer)
     }
   }, [searchTerm])
+
+  // Reset pagination on search change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [debouncedSearch])
 
   const fetchUtilities = async () => {
     setIsLoading(true)
@@ -53,6 +63,15 @@ export default function UtilTable() {
 
   useEffect(() => {
     fetchUtilities()
+
+    const channel = supabase
+      .channel('util-table-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'utilities' }, fetchUtilities)
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   // Filter items based on debouncedSearch
@@ -65,6 +84,8 @@ export default function UtilTable() {
     const profileMatch = item.profiles?.full_name?.toLowerCase().includes(q)
     return nameMatch || typeMatch || serialMatch || profileMatch
   })
+
+  const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
   return (
     <Table className="w-full min-w-0 overflow-hidden">
@@ -106,8 +127,8 @@ export default function UtilTable() {
                   <TableDataAction><SingleLineSkeleton /></TableDataAction>
                 </TableRow>
               ))
-            ) : filteredData.length > 0 ? (
-              filteredData.map((item) => (
+            ) : paginatedData.length > 0 ? (
+              paginatedData.map((item) => (
                 <TableRow key={item.id}>
                   <TableData className="font-semibold text-gray-800">{item.name}</TableData>
                   <TableDataMuted>{item.type}</TableDataMuted>
@@ -145,6 +166,14 @@ export default function UtilTable() {
           </tbody>
         </DataTable>
       </TableScrollWrapper>
+
+      {/* Pagination Controls */}
+      <TablePagination 
+        currentPage={currentPage}
+        totalItems={filteredData.length}
+        itemsPerPage={itemsPerPage}
+        onPageChange={setCurrentPage}
+      />
 
       {/* Side Modal */}
       {selectedItem && (

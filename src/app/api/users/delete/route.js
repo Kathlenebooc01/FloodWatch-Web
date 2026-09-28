@@ -24,6 +24,11 @@ export async function POST(req) {
       }
     )
 
+    // 0. Delete related records in child tables that reference this user_id
+    await supabase.from('incident_report').delete().eq('user_id', userId);
+    await supabase.from('notifications').delete().eq('user_id', userId);
+    await supabase.from('id_verification').delete().eq('user_id', userId);
+
     // 1. Delete from public.profiles
     const { error: profileError } = await supabase
       .from('profiles')
@@ -39,15 +44,20 @@ export async function POST(req) {
     const { error: authError } = await supabase.auth.admin.deleteUser(userId)
 
     if (authError) {
-      console.error("Error deleting auth user:", authError)
-      throw authError
+      // If the user is already deleted in auth.users, treat as success
+      if (authError.message === 'User not found') {
+        console.warn("Auth user already deleted or not found, ignoring error.");
+      } else {
+        console.error("Error deleting auth user:", authError)
+        throw authError
+      }
     }
 
     return NextResponse.json({ success: true, message: 'Account permanently deleted' })
   } catch (err) {
     console.error("API delete-account error:", err)
     return NextResponse.json(
-      { success: false, error: err.message || 'Failed to delete account.' },
+      { success: false, error: err.message || JSON.stringify(err) || 'Failed to delete account.' },
       { status: 500 }
     )
   }
