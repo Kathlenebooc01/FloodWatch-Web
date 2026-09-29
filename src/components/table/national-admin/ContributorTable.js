@@ -104,7 +104,14 @@ function LazyRow({ row, scrollRoot, onViewDetails }) {
           </TableData>
 
           {/* Role */}
-          <TableDataMuted>{row.role}</TableDataMuted>
+          <TableDataMuted>
+            {row.role === 'lgu_headmaster' ? 'LGU Headmaster' :
+             row.role === 'provincial_admin' ? 'Provincial Admin' :
+             row.role === 'lgu_frontliner' ? 'LGU Frontliner' :
+             row.role === 'national_admin' ? 'National Admin' :
+             row.role === 'citizen' ? 'Citizen' :
+             row.role?.replace(/_/g, ' ')}
+          </TableDataMuted>
 
           {/* Action */}
           <TableDataAction>

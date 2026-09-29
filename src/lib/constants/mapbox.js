@@ -4,9 +4,8 @@
  * even if environment variables have not been configured yet in the Vercel dashboard.
  */
 
-export const DEFAULT_MAPBOX_TOKEN =
-  process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ||
-  "pk.eyJ1Ijoia2l0bGluMDExIiwiYSI6ImNtdTlxbWxsMzByMTIyd29mZjl0OWFheDIifQ.Z-TOM6HB9bXSmQ2EGZRICQ";
+export const DEFAULT_MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || "";
+
 
 export const DEFAULT_MAPBOX_STYLE =
   process.env.NEXT_PUBLIC_MAPBOX_STYLE ||
