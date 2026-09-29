@@ -8,7 +8,6 @@ const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.8-flash
 const TERTIARY_MODEL = 'gemini-flash-lite-latest'
 
 export const maxDuration = 60;
-export const runtime = 'edge';
 
 // --- LantawThinking: Guardrails ---
 function getGuardrails() {

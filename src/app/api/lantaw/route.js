@@ -11,7 +11,6 @@ const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.8-flash
 const TERTIARY_MODEL = 'gemini-flash-lite-latest'
 
 export const maxDuration = 60;
-export const runtime = 'edge';
 
 // Initialize Supabase with service role for backend access
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
@@ -123,12 +122,12 @@ async function getAllContextData() {
 
     try {
         const [inventory, weather, incidents, airQuality, distress, utilities] = await Promise.all([
-            supabaseAdmin.from('pdrrmo_inventory').select('*').limit(15),
-            supabaseAdmin.from('weather_telemetry').select('*').order('fetched_at', { ascending: false }).limit(10),
-            supabaseAdmin.from('incident_report').select('*').order('created_at', { ascending: false }).limit(10),
-            supabaseAdmin.from('air_quality').select('*').order('recorded_at', { ascending: false }).limit(10),
-            supabaseAdmin.from('distress_signals').select('*').order('created_at', { ascending: false }).limit(10),
-            supabaseAdmin.from('utilities').select('*').limit(15),
+            supabaseAdmin.from('pdrrmo_inventory').select('*').limit(5),
+            supabaseAdmin.from('weather_telemetry').select('*').order('fetched_at', { ascending: false }).limit(3),
+            supabaseAdmin.from('incident_report').select('*').order('created_at', { ascending: false }).limit(3),
+            supabaseAdmin.from('air_quality').select('*').order('recorded_at', { ascending: false }).limit(3),
+            supabaseAdmin.from('distress_signals').select('*').order('created_at', { ascending: false }).limit(3),
+            supabaseAdmin.from('utilities').select('*').limit(5),
         ])
 
         results.pdrrmo_inventory_snapshot = inventory.data || []
