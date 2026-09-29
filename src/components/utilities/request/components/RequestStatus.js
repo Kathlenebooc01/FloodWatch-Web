@@ -11,9 +11,14 @@ export default function RequestStatus({ status }) {
     }
   }
 
+  const formatStatus = (s) => {
+    if (!s) return 'Pending'
+    return s.replace(/_/g, ' ')
+  }
+
   return (
     <CardBasedText className={`${getStatusClass(status)} font-semibold capitalize`}>
-      {status || 'Pending'}
+      {formatStatus(status)}
     </CardBasedText>
   )
 }

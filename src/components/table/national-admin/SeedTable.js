@@ -41,6 +41,7 @@ import { supabase } from "@/supabase/util/supabase"
 
 import Map, { Marker, Source, Layer, NavigationControl } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { DEFAULT_MAPBOX_TOKEN } from '@/lib/constants/mapbox';
 
 // ─── PostGIS WKB (Well-Known Binary) Parser in Pure JS ──────────────────────
 function parseWkbHex(hex) {
@@ -831,13 +832,13 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
               </div>
 
               <div className="h-64 w-full rounded-2xl overflow-hidden border border-gray-200 shadow-sm relative group">
-                {process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ? (
+                {(process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || DEFAULT_MAPBOX_TOKEN) ? (
                   <Map
                     {...viewState}
                     onMove={evt => setViewState(evt.viewState)}
                     style={{ width: '100%', height: '100%' }}
                     mapStyle="mapbox://styles/mapbox/streets-v12"
-                    mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}
+                    mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || DEFAULT_MAPBOX_TOKEN}
                   >
                     <NavigationControl position="top-right" />
 

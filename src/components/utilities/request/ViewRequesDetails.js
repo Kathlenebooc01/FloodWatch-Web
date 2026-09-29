@@ -11,6 +11,7 @@ import WorkFlowTool from "./components/WorkFlowTool"
 import LogisticsDetail from "./components/LogisticsDetail"
 import ApprovedandDispatchSideModal from "./components/ApprovedandDispatchSideModal"
 import { supabase } from "@/supabase/util/supabase"
+import { DEFAULT_MAPBOX_TOKEN } from "@/lib/constants/mapbox"
 
 export default function ViewRequesDetails({ id }) {
   const [request, setRequest] = useState(null)
@@ -115,7 +116,8 @@ export default function ViewRequesDetails({ id }) {
   useEffect(() => {
     const fetchGeocode = async (address) => {
       try {
-        const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}&limit=1`);
+        const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || DEFAULT_MAPBOX_TOKEN;
+        const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${token}&limit=1`);
         const data = await res.json();
         if (data.features && data.features.length > 0) {
           setGeocodeCoords({

@@ -6,9 +6,12 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.NEXT_SERVICE_ROLE_KEY
 const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI
 const GEMINI_BACKUP_KEY = process.env.GEMINI_LANTAW_BACKUP_AI || process.env.GEMINI_LANTAW_AI
-const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-3.8-flash'
-const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.7-flash'
-const TERTIARY_MODEL = 'gemini-3.1-flash-lite'
+const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-flash-latest'
+const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.8-flash'
+const TERTIARY_MODEL = 'gemini-flash-lite-latest'
+
+export const maxDuration = 60;
+export const runtime = 'edge';
 
 // Initialize Supabase with service role for backend access
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)

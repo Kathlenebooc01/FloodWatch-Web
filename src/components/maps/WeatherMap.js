@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Map, { Source, Layer, NavigationControl } from 'react-map-gl/mapbox';
 import { Thermometer, Wind, CloudRain, Cloud, Maximize2, Info } from 'lucide-react';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { DEFAULT_MAPBOX_TOKEN } from '@/lib/constants/mapbox';
 import MapToggleSwitch from './MapToggleSwitch';
 import { supabase } from '@/supabase/util/supabase';
 
@@ -109,7 +110,7 @@ export default function WeatherMap({ activeTab: externalTab, onTabChange: extern
         initialViewState={{ latitude: 10.3157, longitude: 123.8854, zoom: 8.5 }}
         maxBounds={cebuBounds}
         mapStyle="mapbox://styles/mapbox/dark-v11"
-        mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}
+        mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || DEFAULT_MAPBOX_TOKEN}
         style={{ width: '100%', height: '100%' }}
         scrollZoom={true}
         dragPan={true}

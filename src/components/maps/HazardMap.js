@@ -24,6 +24,13 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import HazardMapToogleButton from '../monitoring/HazardMapToogleButton';
 import HazardVerticalFilter from '../monitoring/HazardVerticalFilter';
 import { getCachedMonitoringData, setCachedMonitoringData } from '@/lib/cache/monitoringCache';
+import { 
+  DEFAULT_MAPBOX_TOKEN, 
+  DEFAULT_MAPBOX_STYLE, 
+  DEFAULT_FLOOD_TILESET, 
+  DEFAULT_LANDSLIDE_TILESET, 
+  DEFAULT_STORM_SURGE_TILESET 
+} from '@/lib/constants/mapbox';
 
 const SSA_METADATA = {
   1: { range: '0.5m - 1.0m', desc: 'Low Inundation / Minor Coastal Threat', title: 'Advisory 1' },
@@ -56,17 +63,18 @@ export default function HazardMap({ isFullscreen = false }) {
   const [lastRefreshed, setLastRefreshed] = useState(null);
 
   const [cursor, setCursor] = useState('auto');
+  const [mapError, setMapError] = useState(null);
   const mapRef = useRef(null);
 
-  const defaultMapStyle = process.env.NEXT_PUBLIC_MAPBOX_STYLE || "mapbox://styles/apex-yoshi/cmp0s3wq700bg01sx2y9i69pw";
+  const defaultMapStyle = process.env.NEXT_PUBLIC_MAPBOX_STYLE || DEFAULT_MAPBOX_STYLE;
   const satelliteMapStyle = "mapbox://styles/mapbox/satellite-streets-v12";
-  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
-  const landslideTileset = process.env.NEXT_PUBLIC_LANDSLIDE_TILESET || "mapbox://apex-yoshi.fpxdxp858iuw";
-  const floodTileset = process.env.NEXT_PUBLIC_FLOOD_TILESET || "mapbox://apex-yoshi.pcfu74sslrtt";
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || DEFAULT_MAPBOX_TOKEN;
+  const landslideTileset = process.env.NEXT_PUBLIC_LANDSLIDE_TILESET || DEFAULT_LANDSLIDE_TILESET;
+  const floodTileset = process.env.NEXT_PUBLIC_FLOOD_TILESET || DEFAULT_FLOOD_TILESET;
 
   // Resolve Storm Surge combined tileset URL
-  const stormSurgeTileset = process.env.NEXT_PUBLIC_STORM_SURGE_COMBINE_TILESET_URL?.startsWith('mapbox://')
-    ? process.env.NEXT_PUBLIC_STORM_SURGE_COMBINE_TILESET_URL
+  const stormSurgeTileset = (process.env.NEXT_PUBLIC_STORM_SURGE_COMBINE_TILESET_URL || DEFAULT_STORM_SURGE_TILESET)?.startsWith('mapbox://')
+    ? (process.env.NEXT_PUBLIC_STORM_SURGE_COMBINE_TILESET_URL || DEFAULT_STORM_SURGE_TILESET)
     : `mapbox://${process.env.NEXT_PUBLIC_STORM_SURGE_COMBINE_TILESET_ID || 'apex-yoshi.cwto3bl6xxlg'}`;
 
   // Exact vector source layer names from Mapbox Studio
@@ -274,6 +282,10 @@ export default function HazardMap({ isFullscreen = false }) {
         style={{ width: '100%', height: '100%' }}
         mapStyle={isSatellite ? satelliteMapStyle : defaultMapStyle}
         mapboxAccessToken={mapboxToken}
+        onError={(e) => {
+          console.error("Mapbox map error:", e);
+          setMapError(e?.error?.message || "Failed to load Mapbox style or tileset. Check Mapbox access token.");
+        }}
       >
         <NavigationControl position="top-right" />
 
@@ -642,6 +654,23 @@ export default function HazardMap({ isFullscreen = false }) {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Mapbox Loading Error / Token Warning Notice */}
+        {mapError && (
+          <div className="pointer-events-auto flex items-center gap-2 bg-amber-600/95 text-white backdrop-blur-xl border border-amber-500 shadow-xl px-3.5 py-2 rounded-xl text-xs font-semibold animate-in fade-in max-w-lg">
+            <AlertCircle className="size-4 shrink-0 text-white" />
+            <span className="flex-1">
+              Notice: Map issue ({mapError}). If deploying on Vercel, please ensure NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is configured in Vercel Settings.
+            </span>
+            <button 
+              type="button" 
+              onClick={() => setMapError(null)}
+              className="hover:bg-amber-700 p-1 rounded-md text-white cursor-pointer"
+            >
+              <X className="size-3.5" />
+            </button>
           </div>
         )}
 

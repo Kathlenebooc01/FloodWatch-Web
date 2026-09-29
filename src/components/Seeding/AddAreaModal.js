@@ -26,6 +26,7 @@ import { useRouter } from 'next/navigation'
 
 import Map, { Marker, Source, Layer, NavigationControl } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { DEFAULT_MAPBOX_TOKEN } from '@/lib/constants/mapbox'
 
 // Helper: Generate a bounding polygon in WKT and GeoJSON format
 function createGeofence(lng, lat, delta = 0.04) {
@@ -292,7 +293,8 @@ export default function AddAreaModal() {
       return;
     }
     
-    if (!process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN) {
+    const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || DEFAULT_MAPBOX_TOKEN;
+    if (!token) {
       if (!overrideMuniName) alert("Mapbox API token is missing in .env.local");
       return;
     }
@@ -302,7 +304,7 @@ export default function AddAreaModal() {
 
     setIsFetchingGeocode(true);
     try {
-      const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}&country=ph&types=place,locality,poi`);
+      const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=ph&types=place,locality,poi`);
       const data = await res.json();
       
       if (!res.ok) {
@@ -520,13 +522,13 @@ export default function AddAreaModal() {
           </div>
 
           <div className="h-60 w-full rounded-2xl overflow-hidden border border-gray-200 shadow-sm relative group">
-            {process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN ? (
+            {(process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || DEFAULT_MAPBOX_TOKEN) ? (
               <Map
                 {...viewState}
                 onMove={evt => setViewState(evt.viewState)}
                 style={{ width: '100%', height: '100%' }}
                 mapStyle="mapbox://styles/mapbox/light-v11"
-                mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}
+                mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || DEFAULT_MAPBOX_TOKEN}
               >
                 <NavigationControl position="top-right" />
 

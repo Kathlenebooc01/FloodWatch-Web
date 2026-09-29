@@ -12,6 +12,7 @@ import {
   Maximize2
 } from 'lucide-react';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { DEFAULT_MAPBOX_TOKEN } from '@/lib/constants/mapbox';
 import { supabase } from '@/supabase/util/supabase';
 import GeneralCard from '../cards/GeneralCard';
 import CardHeader from '../cards/CardHeader';
@@ -455,7 +456,7 @@ export default function HeatIndexMap({ isFullscreen = false }) {
         initialViewState={{ latitude: 10.3157, longitude: 123.8854, zoom: 8.8 }}
         style={{ width: '100%', height: '100%' }}
         mapStyle="mapbox://styles/mapbox/light-v11"
-        mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}
+        mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || DEFAULT_MAPBOX_TOKEN}
         interactiveLayerIds={['heat-index-pins']}
         onClick={onMapClick}
         onMouseEnter={onMouseEnter}

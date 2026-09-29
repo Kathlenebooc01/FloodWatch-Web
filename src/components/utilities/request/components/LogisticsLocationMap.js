@@ -1,6 +1,7 @@
 "use client"
 import Map, { Marker } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { DEFAULT_MAPBOX_TOKEN } from '@/lib/constants/mapbox'
 
 export default function LogisticsLocationMap({ 
   longitude = 125.5406, 
@@ -16,7 +17,7 @@ export default function LogisticsLocationMap({
           zoom
         }}
         mapStyle="mapbox://styles/mapbox/light-v11"
-        mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}
+        mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || DEFAULT_MAPBOX_TOKEN}
         dragPan={false}
         scrollZoom={false}
         doubleClickZoom={false}
