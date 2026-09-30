@@ -109,7 +109,7 @@ export default function PendingVerifications() {
               <th className="pb-3 pt-1 uppercase">Citizen ID & Name</th>
               <th className="pb-3 pt-1 uppercase">ID Type</th>
               <th className="pb-3 pt-1 uppercase">Submitted</th>
-              <th className="pb-3 pt-1 uppercase text-right">Action</th>
+              <th className="pb-3 pt-1 uppercase text-right">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -119,7 +119,7 @@ export default function PendingVerifications() {
                   <td className="py-3 pr-2"><SingleLineSkeleton /></td>
                   <td className="py-3 px-2"><SingleLineSkeleton /></td>
                   <td className="py-3 px-2"><SingleLineSkeleton /></td>
-                  <td className="py-3 pl-2 text-right"><div className="w-12 h-6 bg-gray-100 rounded inline-block"></div></td>
+                  <td className="py-3 pl-2 text-right"><div className="w-12 h-4 bg-gray-100 rounded inline-block float-right"></div></td>
                 </tr>
               ))
             ) : verifications.length > 0 ? (
@@ -138,11 +138,9 @@ export default function PendingVerifications() {
                     {formatDate(item.submitted_at)}
                   </td>
                   <td className="py-3 pl-2 text-right">
-                    <Link href="/national-admin/id_verification">
-                      <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
-                        Verify
-                      </button>
-                    </Link>
+                    <span className="bg-amber-50 text-amber-600 font-bold border border-amber-100 px-2 py-0.5 rounded-full text-[10px]">
+                      {item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1) : 'Pending'}
+                    </span>
                   </td>
                 </tr>
               ))
