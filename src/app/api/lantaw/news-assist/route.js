@@ -85,34 +85,42 @@ function getNewsAssistInstructions(existingFields) {
     )
 }
 
-// --- Gemini API call with backup model fallback ---
-async function callGemini(prompt, model, apiKey = GEMINI_API_KEY) {
+// --- Gemini API call with automatic retries ---
+async function callGemini(prompt, model, apiKey = GEMINI_API_KEY, maxRetries = 2) {
     const keyToUse = apiKey || GEMINI_API_KEY
     if (!keyToUse) {
         throw new Error("GEMINI_LANTAW_AI environment variable is not configured. Please add your Google Gemini API key to .env.local.")
     }
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keyToUse}`
 
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-                temperature: 0.3,
-                maxOutputTokens: 2048,
-                responseMimeType: "application/json",
-            }
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    temperature: 0.3,
+                    maxOutputTokens: 2048,
+                    responseMimeType: "application/json",
+                }
+            })
         })
-    })
 
-    if (!response.ok) {
-        const errorBody = await response.text()
-        throw new Error(`Gemini API error (${model}): ${response.status} - ${errorBody}`)
+        if (!response.ok) {
+            const errorBody = await response.text()
+            if (response.status === 503 && attempt < maxRetries) {
+                // High demand: wait 2 seconds and retry transparently
+                console.warn(`[Lantaw] 503 High Demand on ${model}, retrying (attempt ${attempt + 1}/${maxRetries})...`)
+                await new Promise(resolve => setTimeout(resolve, 2000))
+                continue
+            }
+            throw new Error(`Gemini API error (${model}): ${response.status} - ${errorBody}`)
+        }
+
+        const data = await response.json()
+        return data?.candidates?.[0]?.content?.parts?.[0]?.text || ""
     }
-
-    const data = await response.json()
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text || ""
 }
 
 // --- Main API route handler ---
@@ -159,21 +167,34 @@ export async function POST(request) {
 
         // Step 3: LantawConnect — Call Gemini with primary model, fallback to backup
         let aiResponse
+        let startTime = Date.now()
+        let latency = 0
+        let finalStatus = 200
+        
         try {
             aiResponse = await callGemini(fullPrompt, PRIMARY_MODEL, GEMINI_API_KEY)
+            latency = Date.now() - startTime
         } catch (primaryError) {
             console.warn(`Primary model (${PRIMARY_MODEL}) failed, falling back to ${BACKUP_MODEL} with backup key:`, primaryError.message)
-            await logAiError("Lantaw News Assist", `Primary model (${PRIMARY_MODEL}) failed: ${primaryError.message}`)
+            const match = primaryError.message.match(/\b(4\d{2}|5\d{2})\b/)
+            const errCode = match ? match[0] : 500
+            await logAiError("Lantaw News Assist", `Primary model (${PRIMARY_MODEL}) failed: ${primaryError.message} | STATUS:${errCode} | LATENCY:${Date.now() - startTime}ms`)
 
             try {
+                startTime = Date.now()
                 aiResponse = await callGemini(fullPrompt, BACKUP_MODEL, GEMINI_BACKUP_KEY)
+                latency = Date.now() - startTime
             } catch (backupError) {
                 console.warn(`Backup model (${BACKUP_MODEL}) failed, trying tertiary (${TERTIARY_MODEL}):`, backupError.message)
                 try {
+                    startTime = Date.now()
                     aiResponse = await callGemini(fullPrompt, TERTIARY_MODEL, GEMINI_API_KEY || GEMINI_BACKUP_KEY)
+                    latency = Date.now() - startTime
                 } catch (tertiaryError) {
+                    latency = Date.now() - startTime
+                    finalStatus = 503
                     console.error("All AI fallback models failed in news assist:", tertiaryError.message)
-                    await logAiError("Lantaw News Assist", `All AI models failed. Latest error (${TERTIARY_MODEL}): ${tertiaryError.message}`)
+                    await logAiError("Lantaw News Assist", `All AI models failed. Latest error (${TERTIARY_MODEL}): ${tertiaryError.message} | STATUS:${finalStatus} | LATENCY:${latency}ms`)
                     return NextResponse.json({ error: "AI services are currently busy on Google's side. Please try again in a few moments." }, { status: 503 })
                 }
             }
@@ -186,7 +207,7 @@ export async function POST(request) {
 
         try {
             const parsedFields = JSON.parse(cleanedResponse)
-            await logAiSuccess("Lantaw News Assist", "Drafted news board article successfully")
+            await logAiSuccess("Lantaw News Assist", `Drafted news board article successfully | STATUS:${finalStatus} | LATENCY:${latency}ms`)
             return NextResponse.json({ fields: parsedFields })
         } catch (parseError) {
             console.error("Failed to parse Lantaw news assist response:", cleanedResponse)

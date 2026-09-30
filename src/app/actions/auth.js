@@ -22,6 +22,9 @@ export async function createProfileAfterSignUp(profileData, invitationId) {
 
     if (profileError) throw profileError
 
+    // 1.5 Auto-confirm email so they don't get blocked at login
+    await supabaseAdmin.auth.admin.updateUserById(profileData.id, { email_confirm: true })
+
     // 2. Update invitation status to 'accepted'
     if (invitationId) {
       const { error: inviteError } = await supabaseAdmin

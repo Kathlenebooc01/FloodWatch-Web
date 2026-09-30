@@ -199,7 +199,7 @@ export default function InviteUserModal({ onClose }) {
 
       // Format LGU display name (e.g., 'Alcantara, Cebu' for LGU Headmaster, 'Cebu' for Provincial Admin)
       const resolvedLguName = selectedRole === "national_admin"
-        ? null
+        ? "National"
         : selectedRole === "lgu_headmaster" && selectedMunicipality
           ? `${selectedMunicipality}, ${lguName}`
           : lguName

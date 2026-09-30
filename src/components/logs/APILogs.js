@@ -68,8 +68,11 @@ export default function APILogs() {
     }, [selectedApi?.api_id])
 
     useEffect(() => {
-        async function fetchApiLogs() {
+        async function fetchApiLogs(skipHealthCheck = false) {
             try {
+                // We removed the auto health-check on page load here to prevent API quota drain 
+                // and to prevent fake "static-looking" logs on every visit.
+
                 const { data, error } = await supabase
                     .from('api_monitoring')
                     .select('*')
@@ -79,7 +82,8 @@ export default function APILogs() {
 
                 if (data && data.length > 0) {
                     setApis(data)
-                    setSelectedApi(data[0]) // Select the first one by default
+                    // Only set selectedApi if it's not set yet, to avoid resetting user selection on updates
+                    setSelectedApi(prev => prev ? data.find(a => a.api_id === prev.api_id) || data[0] : data[0])
                 }
             } catch (err) {
                 console.error("Error fetching API logs:", err)
@@ -89,6 +93,17 @@ export default function APILogs() {
         }
 
         fetchApiLogs()
+
+        const channel = supabase
+            .channel('api-monitoring-logs-channel')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'api_monitoring' }, () => {
+                fetchApiLogs(true); // Skip health check to avoid infinite loop
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        }
     }, [])
 
     if (apis.length === 0 && !loading) {

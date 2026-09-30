@@ -78,8 +78,7 @@ function LazyUserRow({ user, scrollRoot, onViewDetails }) {
 
   useEffect(() => {
     if (state !== "loading") return
-    const timer = setTimeout(() => setState("loaded"), 250)
-    return () => clearTimeout(timer)
+    setState("loaded")
   }, [state])
 
   const initials = (user.full_name || user.email || "U")
@@ -207,17 +206,48 @@ export default function ListofUsersTable() {
     try {
       const allowedRoles = ["citizen", "provincial_admin", "national_admin", "lgu_headmaster", "lgu_frontliner"]
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*, province:province_id(name), municipality:municipality_id(name)')
-        .in('role', allowedRoles)
-        .order('created_at', { ascending: false })
+      const [profilesRes, invitationsRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*, province:province_id(name), municipality:municipality_id(name)')
+          .in('role', allowedRoles)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('invitations')
+          .select('*')
+          .eq('status', 'accepted')
+      ])
 
-      if (error) throw error
+      if (profilesRes.error) throw profilesRes.error
+      if (invitationsRes.error) throw invitationsRes.error
 
-      if (data) {
-        setUsers(data)
+      let mergedUsers = [...(profilesRes.data || [])]
+      
+      // Keep track of emails we already have actual profiles for
+      const existingEmails = new Set(mergedUsers.map(u => u.email).filter(Boolean))
+
+      // Merge accepted invitations that don't have a profile yet
+      if (invitationsRes.data) {
+        invitationsRes.data.forEach(inv => {
+          if (inv.official_email && !existingEmails.has(inv.official_email)) {
+            mergedUsers.push({
+              id: `inv-${inv.id}`, // Fake ID so React keys work
+              full_name: "Pending Registration",
+              email: inv.official_email,
+              role: inv.account_role,
+              province: { name: inv.lgu_name },
+              municipality: null,
+              mobile_number: null,
+              is_verified: false,
+              account_status: "active",
+              created_at: inv.created_at,
+              is_from_invitation_only: true // Custom flag in case we need it
+            })
+          }
+        })
       }
+
+      setUsers(mergedUsers)
     } catch (err) {
       console.error("Error fetching registered users:", err)
     } finally {
@@ -228,14 +258,20 @@ export default function ListofUsersTable() {
   useEffect(() => {
     fetchUsers()
 
-    // Realtime channel subscription
-    const channel = supabase
+    // Realtime channel subscriptions for both tables
+    const profilesChannel = supabase
       .channel('profiles-realtime-channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchUsers)
       .subscribe()
+      
+    const invitesChannel = supabase
+      .channel('invitations-merged-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invitations' }, fetchUsers)
+      .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      supabase.removeChannel(profilesChannel)
+      supabase.removeChannel(invitesChannel)
     }
   }, [])
 

@@ -11,7 +11,7 @@ import { supabase } from "@/supabase/util/supabase"
 import SquareSkeleton from "@/components/skeleton/SquareSkeleton"
 
 const INITIAL_ROLE_DATA = [
-  { role: "Provincial Admin", total: 0, fill: "#3b82f6" },
+  { role: "Admin", total: 0, fill: "#3b82f6" },
   { role: "Citizens", total: 0, fill: "#10b981" },
   { role: "Headmaster", total: 0, fill: "#f59e0b" },
   { role: "Frontliners", total: 0, fill: "#6366f1" }
@@ -21,43 +21,81 @@ export default function RolesChartPie() {
   const [roleData, setRoleData] = useState(INITIAL_ROLE_DATA)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    async function fetchRoles() {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role')
+  const fetchRoles = async () => {
+    try {
+      const allowedRoles = ["citizen", "provincial_admin", "national_admin", "lgu_headmaster", "lgu_frontliner"]
 
-      if (error) {
-        console.error("Error fetching roles:", error)
-        setLoading(false)
-        return
-      }
+      const [profilesRes, invitationsRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('email, role')
+          .in('role', allowedRoles),
+        supabase
+          .from('invitations')
+          .select('official_email, account_role')
+          .eq('status', 'accepted')
+      ])
 
-      if (data) {
-        let adminCount = 0
-        let citizenCount = 0
-        let headmasterCount = 0
-        let frontlinerCount = 0
+      if (profilesRes.error) throw profilesRes.error
+      if (invitationsRes.error) throw invitationsRes.error
 
-        data.forEach(item => {
-          const r = item.role?.toLowerCase() || 'citizen'
-          if (r.includes('admin')) adminCount++
-          else if (r.includes('headmaster')) headmasterCount++
-          else if (r.includes('frontliner') || r.includes('responder')) frontlinerCount++
-          else citizenCount++ // defaults to citizen for normal users
+      let mergedRoles = [...(profilesRes.data || [])].map(p => ({ email: p.email, role: p.role }))
+      const existingEmails = new Set(mergedRoles.map(u => u.email).filter(Boolean))
+
+      if (invitationsRes.data) {
+        invitationsRes.data.forEach(inv => {
+          if (inv.official_email && !existingEmails.has(inv.official_email)) {
+            mergedRoles.push({
+              email: inv.official_email,
+              role: inv.account_role
+            })
+          }
         })
-
-        setRoleData([
-          { role: "Provincial Admin", total: adminCount, fill: "#3b82f6" },
-          { role: "Citizens", total: citizenCount, fill: "#10b981" },
-          { role: "Headmaster", total: headmasterCount, fill: "#f59e0b" },
-          { role: "Frontliners", total: frontlinerCount, fill: "#6366f1" }
-        ])
       }
+
+      let adminCount = 0
+      let citizenCount = 0
+      let headmasterCount = 0
+      let frontlinerCount = 0
+
+      mergedRoles.forEach(item => {
+        const r = item.role?.toLowerCase() || 'citizen'
+        if (r.includes('admin')) adminCount++
+        else if (r.includes('headmaster')) headmasterCount++
+        else if (r.includes('frontliner') || r.includes('responder')) frontlinerCount++
+        else citizenCount++ // defaults to citizen
+      })
+
+      setRoleData([
+        { role: "Admin", total: adminCount, fill: "#3b82f6" },
+        { role: "Citizens", total: citizenCount, fill: "#10b981" },
+        { role: "Headmaster", total: headmasterCount, fill: "#f59e0b" },
+        { role: "Frontliners", total: frontlinerCount, fill: "#6366f1" }
+      ])
+    } catch (error) {
+      console.error("Error fetching roles:", error)
+    } finally {
       setLoading(false)
     }
+  }
+
+  useEffect(() => {
     fetchRoles()
+
+    const profilesChannel = supabase
+      .channel('roles-pie-profiles')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchRoles)
+      .subscribe()
+      
+    const invitesChannel = supabase
+      .channel('roles-pie-invitations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invitations' }, fetchRoles)
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(profilesChannel)
+      supabase.removeChannel(invitesChannel)
+    }
   }, [])
 
   const totalUsers = useMemo(() => {
@@ -161,7 +199,7 @@ export default function RolesChartPie() {
                     <HatGlasses className="size-5"/>
                     </span>
                     <div className="flex-col flex items-center">
-                    <CardBasedText className='font-semibold'>Provincial Admin</CardBasedText>
+                    <CardBasedText className='font-semibold'>Admin</CardBasedText>
                     <CardHeader className='text-primary'>{roleData[0].total}</CardHeader>
                     </div>
                 </div>

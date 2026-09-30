@@ -44,8 +44,7 @@ function LazyRow({ row, scrollRoot, onViewDetails }) {
 
   useEffect(() => {
     if (state !== "loading") return
-    const timer = setTimeout(() => setState("loaded"), 300)
-    return () => clearTimeout(timer)
+    setState("loaded")
   }, [state])
 
   // Build initials from email (e.g. j.cruz@... → JC)

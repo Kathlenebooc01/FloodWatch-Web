@@ -258,8 +258,7 @@ function LazyRow({ row, onRowClick, scrollRoot }) {
 
   useEffect(() => {
     if (state !== "loading") return;
-    const timer = setTimeout(() => setState("loaded"), 300);
-    return () => clearTimeout(timer);
+    setState("loaded");
   }, [state]);
 
   return (

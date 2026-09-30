@@ -23,26 +23,43 @@ export default function CitizenStatusPie() {
   useEffect(() => {
     async function fetchVerificationStatus() {
       setLoading(true)
-      const { data, error } = await supabase
-        .from('id_verification')
-        .select('status')
+      
+      // Fetch all citizens
+      const { data: citizens, error: citError } = await supabase
+        .from('profiles')
+        .select('id, is_verified')
+        .eq('role', 'citizen')
         
-      if (error) {
-        console.error("Error fetching verification statuses:", error)
+      // Fetch all verification records
+      const { data: verifications, error: verError } = await supabase
+        .from('id_verification')
+        .select('user_id, status')
+        
+      if (citError) {
+        console.error("Error fetching citizens:", citError)
         setLoading(false)
         return
       }
       
-      if (data) {
-        let verifiedCount = 0
-        let pendingCount = 0
-        let unverifiedCount = 0
-        
-        data.forEach(item => {
-          const s = item.status?.toLowerCase() || 'unverified'
-          if (s === 'verified' || s === 'approved') verifiedCount++
-          else if (s === 'pending') pendingCount++
-          else unverifiedCount++
+      let verifiedCount = 0
+      let pendingCount = 0
+      let unverifiedCount = 0
+      
+      if (citizens) {
+        citizens.forEach(citizen => {
+          // Check verification records for this citizen
+          const userVerifications = verifications?.filter(v => v.user_id === citizen.id) || []
+          
+          const hasPending = userVerifications.some(v => v.status === 'pending')
+          const hasApproved = userVerifications.some(v => v.status === 'approved' || v.status === 'verified')
+          
+          if (citizen.is_verified || hasApproved) {
+            verifiedCount++
+          } else if (hasPending) {
+            pendingCount++
+          } else {
+            unverifiedCount++
+          }
         })
         
         setStatusData([

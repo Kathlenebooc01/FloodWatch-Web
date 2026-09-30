@@ -23,8 +23,7 @@ export default function HistoryLazyItem({ item }) {
 
   useEffect(() => {
     if (state !== "loading") return
-    const timer = setTimeout(() => setState("loaded"), 300)
-    return () => clearTimeout(timer)
+    setState("loaded")
   }, [state])
 
   const date = new Date(item.added_on)

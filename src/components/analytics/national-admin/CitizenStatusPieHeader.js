@@ -13,14 +13,13 @@ export default function CitizenStatusPieHeader({ hasPending }) {
             </span>
             <CardSubHeader>Identification Status</CardSubHeader>
         </div>
-        <Link href={hasPending ? "/national-admin/id_verification" : "#"}>
-          <PrimaryButton 
-            className="text-xs py-2 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!hasPending}
-          >
-            View Request
-          </PrimaryButton>
-        </Link>
+        {hasPending && (
+          <Link href="/national-admin/id_verification">
+            <PrimaryButton className="text-xs py-2 px-3">
+              View Request
+            </PrimaryButton>
+          </Link>
+        )}
     </section>
   )
 }

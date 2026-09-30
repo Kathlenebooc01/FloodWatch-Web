@@ -104,7 +104,7 @@ export default function Form({ invitation }) {
         </div>
         <h3 className="text-xl font-bold text-gray-900">Account Created!</h3>
         <p className="text-sm text-gray-500">
-          Your account has been created successfully. Please check your email to verify your account, then you can log in.
+          Your account has been created successfully. You can now log in to the platform.
         </p>
         <p className="text-xs text-gray-400">Redirecting to login...</p>
       </div>

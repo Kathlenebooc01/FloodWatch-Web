@@ -1,17 +1,28 @@
 import React from 'react'
 import SummaryData from '@/components/contributors/SummaryData'
 import AreaCharts from '@/components/analytics/national-admin/AreaChart'
-import RolesChartPie from '@/components/analytics/national-admin/RolesChartPie'
-import CitizenStatusPie from '@/components/analytics/national-admin/CitizenStatusPie'
+import SystemStatus from '@/components/analytics/national-admin/SystemStatus'
+import PendingVerifications from '@/components/analytics/national-admin/PendingVerifications'
+import RecentUsers from '@/components/analytics/national-admin/RecentUsers'
+
 export default function page() {
   return (
-    <section className='grid gap-3'>
+    <section className='grid gap-4 w-full pb-6'>
+      {/* Top 6 Summary Cards */}
       <SummaryData />
       
-      <AreaCharts />
-      <div className='grid lg:grid-cols-2 gap-3'>
-        <RolesChartPie />
-        <CitizenStatusPie />
+      {/* Citizen's Growth Chart */}
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+        <AreaCharts />
+      </div>
+      
+      {/* System Status & Service Integrations */}
+      <SystemStatus />
+      
+      {/* Bottom Row: Pending Verifications & Recent Users */}
+      <div className='grid lg:grid-cols-2 gap-4 items-stretch'>
+        <PendingVerifications />
+        <RecentUsers />
       </div>
     </section>
   )
