@@ -15,8 +15,23 @@ export async function checkIpSecurity(clientIp = null) {
     return { isVpn: false, region: 'Localhost', isValid: true, ip: userIp };
   }
 
+  // Skip VPN check entirely if the API key is not configured
+  if (!process.env.VPN_IO_API) {
+    console.warn("⚠️ VPN_IO_API key is not set — skipping VPN detection.");
+    return { isVpn: false, region: 'Unknown', isValid: false, ip: userIp };
+  }
+
   try {
-    const response = await fetch(`https://vpnapi.io/api/${userIp}?key=${process.env.VPN_IO_API}`);
+    // Add a 3-second timeout to prevent 504 Gateway Timeout on login
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+
+    const response = await fetch(
+      `https://vpnapi.io/api/${userIp}?key=${process.env.VPN_IO_API}`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timeout);
+
     const data = await response.json();
 
     const isVpn = data.security?.vpn || data.security?.proxy || data.security?.tor || false;
@@ -30,8 +45,8 @@ export async function checkIpSecurity(clientIp = null) {
       ip: userIp
     };
   } catch (error) {
-    console.error("IP Security Check Failed:", error);
-    // Decide if you want to block or allow logins if the API itself goes down
+    // On timeout or any network error — allow login (fail open)
+    console.error("IP Security Check Failed (allowing login):", error?.name === 'AbortError' ? 'Request timed out' : error);
     return { isVpn: false, region: 'Unknown', isValid: false, ip: userIp }; 
   }
 }

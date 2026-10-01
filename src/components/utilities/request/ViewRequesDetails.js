@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import GeneralCard from "@/components/cards/GeneralCard"
 import CardSubHeader from "@/components/cards/CardSubHeader"
 import RequestStatus from "./components/RequestStatus"
@@ -19,63 +19,91 @@ export default function ViewRequesDetails({ id }) {
   const [allocations, setAllocations] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const isMountedRef = useRef(true)
 
-  const refetchData = async () => {
-    setIsLoading(true)
+  const refetchData = async (isInitial = false) => {
+    if (isInitial && !request) {
+      setIsLoading(true)
+    }
     try {
-      const { data: reqData } = await supabase
+      const { data: reqData, error: reqErr } = await supabase
         .from('resource_requests')
         .select(`
           *,
           profiles:requested_by (
+            id,
             municipality_or_city:municipality_id (name)
           )
         `)
         .eq('request_id', id)
         .single()
-      setRequest(reqData)
+      if (!isMountedRef.current) return
+      if (!reqErr && reqData) setRequest(reqData)
 
-      const { data: itemsData } = await supabase
+      const { data: itemsData, error: itemsErr } = await supabase
         .from('resource_request_items')
         .select('*, utilities:utilities_id(name, type)')
         .eq('request_id', id)
-      setItems(itemsData || [])
+      if (!isMountedRef.current) return
+      if (!itemsErr) setItems(itemsData || [])
 
-      const { data: allocData } = await supabase
+      const { data: allocData, error: allocErr } = await supabase
         .from('resource_allocations')
         .select('*, profiles:approved_by(full_name)')
         .eq('request_id', id)
         .order('batch', { ascending: true })
-      setAllocations(allocData || [])
+      if (!isMountedRef.current) return
+      if (!allocErr) setAllocations(allocData || [])
     } catch (error) {
-      console.error(error)
+      if (error?.name !== 'AbortError') {
+        console.error(error)
+      }
     } finally {
-      setIsLoading(false)
+      if (isMountedRef.current && isInitial) {
+        setIsLoading(false)
+      }
     }
   }
 
   useEffect(() => {
     if (!id) return
-    refetchData()
+    isMountedRef.current = true
+
+    // Initial fetch shows loading only if no request yet
+    refetchData(true)
 
     const channel = supabase
-      .channel(`request-${id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_requests', filter: `request_id=eq.${id}` }, refetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_allocations', filter: `request_id=eq.${id}` }, refetchData)
+      .channel(`request-${id}-v3`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_requests', filter: `request_id=eq.${id}` }, () => {
+        if (isMountedRef.current) refetchData(false)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_allocations', filter: `request_id=eq.${id}` }, () => {
+        if (isMountedRef.current) refetchData(false)
+      })
       .subscribe()
 
+    // Fast polling every 3s in background (NEVER triggers isLoading or DOM unmount)
+    const pollInterval = setInterval(() => {
+      if (isMountedRef.current) {
+        refetchData(false)
+      }
+    }, 3000)
+
     return () => {
+      isMountedRef.current = false
       supabase.removeChannel(channel)
+      clearInterval(pollInterval)
     }
   }, [id])
 
   const mapStatusToStatusBar = (status, allocs) => {
     if (!allocs || allocs.length === 0) return 'Pending_Dispatch'
-    
-    if (allocs.some(a => a.returned_at)) return 'Returned'
-    if (allocs.some(a => a.received_at)) return 'Received'
-    if (allocs.some(a => a.dispatched_at)) return 'In_Transit'
-    
+
+    // Check timestamps set by mobile app AND batch set by web
+    if (allocs.every(a => a.returned_at || a.batch === 'Returned')) return 'Returned'
+    if (allocs.some(a => a.received_at || a.batch === 'Received')) return 'Received'
+    if (allocs.some(a => a.dispatched_at || a.batch === 'In_Transit')) return 'In_Transit'
+
     return 'Pending_Dispatch'
   }
 
@@ -114,19 +142,27 @@ export default function ViewRequesDetails({ id }) {
   const [geocodeCoords, setGeocodeCoords] = useState(null);
 
   useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+
     const fetchGeocode = async (address) => {
       try {
         const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || DEFAULT_MAPBOX_TOKEN;
-        const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${token}&limit=1`);
+        const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${token}&limit=1`, {
+          signal: controller.signal
+        });
+        if (!active) return;
         const data = await res.json();
-        if (data.features && data.features.length > 0) {
+        if (active && data.features && data.features.length > 0) {
           setGeocodeCoords({
             lat: data.features[0].center[1],
             lng: data.features[0].center[0]
           });
         }
       } catch (error) {
-        console.error("Geocoding error:", error);
+        if (error.name !== 'AbortError') {
+          console.error("Geocoding error:", error);
+        }
       }
     };
 
@@ -135,6 +171,11 @@ export default function ViewRequesDetails({ id }) {
     if (addressToGeocode && !coords) {
       fetchGeocode(addressToGeocode);
     }
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [request?.drop_off_address, request?.profiles?.municipality_or_city?.name, coords]);
 
   if (isLoading) return <div className="p-5 text-gray-500">Loading details...</div>
@@ -145,7 +186,7 @@ export default function ViewRequesDetails({ id }) {
     <GeneralCard className='grid gap-5'>
         <div className="flex justify-between items-center">
             <CardSubHeader className='text-gray-600'>Request Details</CardSubHeader>
-            <RequestStatus status={request?.status}/>
+            <RequestStatus status={allocations.length > 0 ? mapStatusToStatusBar(request?.status, allocations) : request?.status}/>
         </div>
         <div>
             <CardBasedText className='font-semibold text-gray-500'>Logistics Details</CardBasedText>
@@ -163,7 +204,14 @@ export default function ViewRequesDetails({ id }) {
             <LogisticsDetail allocations={allocations}/>
         </div>
         <div>
-            <WorkFlowTool status={request?.status} requestId={id} allocations={allocations} onStatusChange={refetchData} onApprove={() => setIsModalOpen(true)}/>
+            <WorkFlowTool 
+                status={request?.status} 
+                requestId={id} 
+                allocations={allocations} 
+                onStatusChange={refetchData} 
+                onApprove={() => setIsModalOpen(true)}
+                userId={request?.profiles?.id}
+            />
         </div>
         <ApprovedandDispatchSideModal 
             requestId={id} 
@@ -171,6 +219,7 @@ export default function ViewRequesDetails({ id }) {
             isOpen={isModalOpen} 
             onClose={() => setIsModalOpen(false)} 
             onSuccess={refetchData}
+            userId={request?.profiles?.id}
         />
     </GeneralCard>
   )

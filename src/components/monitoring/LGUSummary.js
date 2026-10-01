@@ -16,10 +16,10 @@ export default function LGUSummary() {
     if (showLoading) setIsLoading(true);
 
     const [reportsRes, distressRes] = await Promise.all([
-      // Fetch count of pending incident reports (Pending_AI, Ready_For_LGU, etc.)
       supabase
         .from("incident_report")
-        .select("report_id", { count: "exact", head: true })
+        .select("report_id, profiles!user_id!inner(role)", { count: "exact", head: true })
+        .neq("profiles.role", "citizen")
         .in("status", ["Ready_For_LGU", "Ready_for_LGU", "ready_for_lgu", "Pending_AI", "pending_ai", "Pending", "pending"]),
 
       // Fetch exact count of distress_signals with Pending status
@@ -61,7 +61,7 @@ export default function LGUSummary() {
     // 2. Background Auto-Polling Interval (synchronize silently every 4 seconds)
     const autoRefreshInterval = setInterval(() => {
       fetchCounts(false);
-    }, 4000);
+    }, 60000);
 
     return () => {
       supabase.removeChannel(summaryChannel);

@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import TableScrollWrapper from "@/components/table/TableScrollWrapper"
 import Table from "@/components/table/Table"
 import DataTable from "@/components/table/DataTable"
@@ -18,7 +18,7 @@ import SideModal from "@/components/Modal/SideModal"
 import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
 import TablePagination from "@/components/table/TablePagination"
 import { supabase } from "@/supabase/util/supabase"
-import { ChevronRight, X, ShieldAlert, CheckCircle2, AlertTriangle, MapPin, Calendar, MessageSquare, Check, Loader2 } from "lucide-react"
+import { ChevronRight, X, ShieldAlert, CheckCircle2, AlertTriangle, MapPin, Calendar, MessageSquare, Check, Loader2, FileCheck2, Clock, XCircle, Eye, BadgeCheck, FileDown, FileText } from "lucide-react"
 
 export default function LGUTable() {
   const [activeTab, setActiveTab] = useState("Report Table")
@@ -29,6 +29,7 @@ export default function LGUTable() {
   const [isLoadingReports, setIsLoadingReports] = useState(true)
   const [isLoadingDistress, setIsLoadingDistress] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false)
 
   // Pagination State
   const [reportPage, setReportPage] = useState(1)
@@ -40,6 +41,8 @@ export default function LGUTable() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedReport, setSelectedReport] = useState(null)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+  // Refs to keep modal state in sync inside realtime/interval closures
+  const selectedReportRef = useRef(null)
 
   // Dropdown Filter State for Distress Signals
   const [statusFilter, setStatusFilter] = useState("All")
@@ -56,8 +59,10 @@ export default function LGUTable() {
     const [reportsRes, munisRes] = await Promise.all([
       supabase
         .from("incident_report")
-        .select("*")
-        .order("created_at", { ascending: false }),
+        .select("*, profiles!user_id!inner(role)")
+        .neq("profiles.role", "citizen")
+        .order("created_at", { ascending: false })
+        .limit(200),
       supabase.from("municipality_or_city").select("*")
     ]);
 
@@ -77,6 +82,13 @@ export default function LGUTable() {
     });
 
     setReports(processedReports);
+
+    // Sync open report modal in real-time (no refresh needed)
+    if (selectedReportRef.current) {
+      const updatedRep = processedReports.find((r) => r.report_id === selectedReportRef.current.report_id);
+      if (updatedRep) setSelectedReport(updatedRep);
+    }
+
     if (showLoading) setIsLoadingReports(false);
   };
 
@@ -85,7 +97,7 @@ export default function LGUTable() {
     if (showLoading) setIsLoadingDistress(true);
 
     const [distressRes, profilesRes, munisRes] = await Promise.all([
-      supabase.from("distress_signals").select("*").order("created_at", { ascending: false }),
+      supabase.from("distress_signals").select("*").order("created_at", { ascending: false }).limit(200),
       supabase.from("profiles").select("id, full_name, organization_name, role, email"),
       supabase.from("municipality_or_city").select("*")
     ]);
@@ -146,7 +158,7 @@ export default function LGUTable() {
     const autoFetchInterval = setInterval(() => {
       fetchReports(false);
       fetchDistressSignals(false);
-    }, 4000);
+    }, 60000);
 
     return () => {
       supabase.removeChannel(reportChannel);
@@ -172,11 +184,13 @@ export default function LGUTable() {
   };
 
   const handleOpenReportModal = (item) => {
+    selectedReportRef.current = item;
     setSelectedReport(item);
     setIsReportModalOpen(true);
   };
 
   const handleCloseReportModal = () => {
+    selectedReportRef.current = null;
     setIsReportModalOpen(false);
     setSelectedReport(null);
   };
@@ -214,6 +228,90 @@ export default function LGUTable() {
     }
   };
 
+  // Handler to Accept an Incident Report (Admin action → LGU app sees "Accepted")
+  const handleAcceptReport = async () => {
+    if (!selectedReport || isSubmittingReport) return;
+    setIsSubmittingReport(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const reviewerId = session?.user?.id || null;
+      const now = new Date().toISOString();
+
+      const updatePayload = {
+        status: "Verified",
+      };
+
+      const { error } = await supabase
+        .from("incident_report")
+        .update(updatePayload)
+        .eq("report_id", selectedReport.report_id);
+
+      if (error) {
+        console.error("🚨 Error accepting report:", error.message);
+      } else {
+        // Create notification for the user
+        if (selectedReport.user_id) {
+          await supabase.from("notifications").insert({
+            user_id: selectedReport.user_id,
+            title: "Report Verified",
+            message: `Your incident report for ${(selectedReport.hazard_type || "incident").replace(/_/g, " ")} has been verified and accepted by the LGU.`,
+            type: "Updates",
+            target_role: "lgu"
+          });
+        }
+
+        // Instantly update modal state + table row — no refresh needed
+        const updated = { ...selectedReportRef.current, status: "Verified" };
+        selectedReportRef.current = updated;
+        setSelectedReport(updated);
+        setReports((prev) => prev.map((r) => r.report_id === updated.report_id ? updated : r));
+      }
+    } catch (err) {
+      console.error("Unexpected error accepting report:", err);
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
+  // Handler to Reject an Incident Report
+  const handleRejectReport = async () => {
+    if (!selectedReport || isSubmittingReport) return;
+    setIsSubmittingReport(true);
+
+    try {
+      const { error } = await supabase
+        .from("incident_report")
+        .update({ status: "Rejected" })
+        .eq("report_id", selectedReport.report_id);
+
+      if (error) {
+        console.error("🚨 Error rejecting report:", error.message);
+      } else {
+        // Create notification for the user
+        if (selectedReport.user_id) {
+          await supabase.from("notifications").insert({
+            user_id: selectedReport.user_id,
+            title: "Report Rejected",
+            message: `Your incident report for ${(selectedReport.hazard_type || "incident").replace(/_/g, " ")} was reviewed but rejected.`,
+            type: "Updates",
+            target_role: "lgu"
+          });
+        }
+
+        // Instantly update modal state + table row — no refresh needed
+        const updated = { ...selectedReportRef.current, status: "Rejected" };
+        selectedReportRef.current = updated;
+        setSelectedReport(updated);
+        setReports((prev) => prev.map((r) => r.report_id === updated.report_id ? updated : r));
+      }
+    } catch (err) {
+      console.error("Unexpected error rejecting report:", err);
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
   // Status Badge Helper for Distress Signals (Cleans all underscores)
   const getDistressStatusBadge = (status) => {
     const raw = status || "Pending";
@@ -229,13 +327,30 @@ export default function LGUTable() {
     }
   };
 
-  // Status Badge Helper for Reports (Cleans all underscores like Pending_AI -> Pending AI)
+  // Status Badge Helper for Reports
+  // Pending_AI / Pending_Ai / pending_ai → always shown as just "Pending"
   const getReportStatusBadge = (status) => {
     const raw = status || "Pending";
-    const clean = raw.replace(/_/g, " ");
-    const s = clean.toLowerCase();
+    const s = raw.toLowerCase();
 
+    if (s === "accepted") {
+      return (
+        <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full text-xs font-bold tracking-wide inline-flex items-center gap-1.5 shadow-xs">
+          <BadgeCheck className="size-3.5" />
+          Accepted
+        </span>
+      );
+    }
+    if (s === "rejected") {
+      return (
+        <span className="bg-red-500/10 text-red-700 border border-red-200 px-3 py-1 rounded-full text-xs font-bold tracking-wide inline-flex items-center gap-1.5 shadow-xs">
+          <XCircle className="size-3.5" />
+          Rejected
+        </span>
+      );
+    }
     if (s.includes("verified") || s.includes("resolved") || s.includes("approved") || s.includes("completed")) {
+      const clean = raw.replace(/_/g, " ");
       return (
         <span className="bg-green-500/10 text-green-700 border border-green-200 px-3 py-1 rounded-full text-xs font-semibold tracking-wide inline-flex items-center gap-1.5 shadow-xs">
           <span className="size-1.5 rounded-full bg-green-500" />
@@ -243,15 +358,17 @@ export default function LGUTable() {
         </span>
       );
     }
-    if (s.includes("pending") || s.includes("ai") || s.includes("review")) {
+    // Pending_AI, pending_ai, Pending_ai, pending → all show as "Pending"
+    if (s.includes("pending") || s.includes("_ai") || s.includes("review")) {
       return (
         <span className="bg-amber-500/10 text-amber-700 border border-amber-200 px-3 py-1 rounded-full text-xs font-semibold tracking-wide inline-flex items-center gap-1.5 shadow-xs">
           <span className="size-1.5 rounded-full bg-amber-500" />
-          {clean}
+          Pending
         </span>
       );
     }
     if (s.includes("ready") || s.includes("lgu")) {
+      const clean = raw.replace(/_/g, " ");
       return (
         <span className="summary-data-icon-purple px-3 py-1 text-xs font-semibold rounded-full border border-purple-200/60 inline-flex items-center gap-1.5 shadow-xs">
           <span className="size-1.5 rounded-full bg-purple-600 animate-pulse" />
@@ -259,6 +376,7 @@ export default function LGUTable() {
         </span>
       );
     }
+    const clean = raw.replace(/_/g, " ");
     return (
       <span className="bg-blue-500/10 text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-xs font-semibold tracking-wide inline-flex items-center gap-1.5 shadow-xs">
         <span className="size-1.5 rounded-full bg-blue-500" />
@@ -619,100 +737,312 @@ export default function LGUTable() {
       {/* ── Side Modal for Incident Report Details ── */}
       {isReportModalOpen && selectedReport && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-xs" onClick={handleCloseReportModal} />
+          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" onClick={handleCloseReportModal} />
           
-          <SideModal className="z-50 !w-[350px] md:!w-[420px]">
-            <div className="p-6 flex flex-col h-full bg-white justify-between">
-              <div>
-                {/* Header */}
-                <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-5">
-                  <div className="flex items-center gap-2">
-                    <ShieldAlert className="size-5 text-primary shrink-0" />
-                    <CardSubHeader className="!mb-0 font-extrabold text-gray-800">
-                      Incident Report Details
-                    </CardSubHeader>
+          <SideModal className="z-50 !w-[380px] md:!w-[460px]">
+            <div className="flex flex-col h-full bg-white">
+
+              {/* ── Modal Header with gradient accent ── */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 px-6 pt-6 pb-5 shrink-0">
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent" />
+                <div className="relative flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="p-1.5 bg-white/10 rounded-lg">
+                        <FileCheck2 className="size-4 text-white" />
+                      </div>
+                      <span className="text-[11px] font-bold text-white/50 uppercase tracking-widest">Incident Report</span>
+                    </div>
+                    <h2 className="text-lg font-extrabold text-white leading-tight mt-2 capitalize">
+                      {(selectedReport.hazard_type || selectedReport.report_type || "Incident Report").replace(/_/g, " ")}
+                    </h2>
+                    <div className="flex items-center gap-1.5 mt-1.5 text-white/60 text-xs">
+                      <MapPin className="size-3.5" />
+                      <span className="font-medium">{selectedReport.municipality_name}</span>
+                    </div>
                   </div>
-                  <button onClick={handleCloseReportModal} className="modal-icon-button bg-gray-100 hover:bg-gray-200">
-                    <X className="size-5 text-gray-600" />
+                  <button
+                    onClick={handleCloseReportModal}
+                    className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors shrink-0 ml-3 mt-0.5"
+                  >
+                    <X className="size-4.5 text-white" />
                   </button>
                 </div>
 
-                {/* Body Details */}
-                <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
-                  {/* Primary Info Box */}
-                  <div className="bg-gray-50/80 p-4 rounded-2xl border border-gray-200/80 space-y-3">
-                    <div>
-                      <CardBasedText className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                        Hazard / Event Type
-                      </CardBasedText>
-                      <div className="text-base font-extrabold text-gray-900 capitalize">
-                        {(selectedReport.hazard_type || selectedReport.report_type || "Incident Report").replace(/_/g, " ")}
-                      </div>
-                    </div>
+                {/* Status Row */}
+                <div className="flex items-center justify-between mt-4 pt-3.5 border-t border-white/10">
+                  <div className="text-[11px] text-white/50 font-semibold uppercase tracking-wider">Current Status</div>
+                  {getReportStatusBadge(selectedReport.status)}
+                </div>
+              </div>
 
-                    <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-200/60">
-                      <div>
-                        <CardBasedText className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                          Municipality/City
-                        </CardBasedText>
-                        <div className="text-sm font-bold text-gray-800 flex items-center gap-1">
-                          <MapPin className="size-3.5 text-primary" /> {selectedReport.municipality_name}
-                        </div>
+              {/* ── Accepted Banner (shown when accepted) ── */}
+              {selectedReport.status?.toLowerCase() === "accepted" && (
+                <div className="mx-4 mt-4 bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 flex items-start gap-3 shrink-0">
+                  <div className="p-1.5 bg-emerald-100 rounded-lg shrink-0">
+                    <BadgeCheck className="size-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-extrabold text-emerald-800">Report Accepted by Admin</div>
+                    <div className="text-xs text-emerald-600 mt-0.5">
+                      The LGU has been notified. This report is now visible as accepted in the mobile app.
+                    </div>
+                    {selectedReport.accepted_at && (
+                      <div className="text-[11px] text-emerald-500 font-semibold mt-1.5 flex items-center gap-1">
+                        <Clock className="size-3" />
+                        Accepted on {new Date(selectedReport.accepted_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                       </div>
-                      <div>
-                        <CardBasedText className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                          Report Status
-                        </CardBasedText>
-                        <div className="mt-0.5">
-                          {getReportStatusBadge(selectedReport.status)}
-                        </div>
-                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Rejected Banner ── */}
+              {selectedReport.status?.toLowerCase() === "rejected" && (
+                <div className="mx-4 mt-4 bg-red-50 border border-red-200 rounded-2xl p-3.5 flex items-start gap-3 shrink-0">
+                  <div className="p-1.5 bg-red-100 rounded-lg shrink-0">
+                    <XCircle className="size-4 text-red-500" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-extrabold text-red-800">Report Rejected</div>
+                    <div className="text-xs text-red-600 mt-0.5">
+                      This report has been marked as rejected and will not be processed further.
                     </div>
                   </div>
+                </div>
+              )}
 
-                  {/* Image Attachment if available */}
-                  {selectedReport.image_url && (
-                    <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-100 max-h-48 relative">
-                      <img 
-                        src={selectedReport.image_url} 
-                        alt="Report attachment" 
-                        className="w-full h-full object-cover max-h-48"
-                        onError={(e) => { e.target.style.display = 'none'; }}
-                      />
+              {/* ── Body Details (scrollable) ── */}
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+                {/* Smart Attachment — handles Image and PDF */}
+                {selectedReport.image_url && (() => {
+                  const url = selectedReport.image_url;
+                  const isPdf = url?.toLowerCase().includes('.pdf') || url?.toLowerCase().includes('application/pdf');
+                  const fileName = url?.split('/').pop()?.split('?')[0] || 'attachment';
+
+                  if (isPdf) {
+                    return (
+                      <div>
+                        <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <FileText className="size-3.5" /> PDF Attachment
+                        </div>
+                        <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 flex items-center gap-4">
+                          {/* PDF Icon */}
+                          <div className="shrink-0 bg-red-100 rounded-xl p-3">
+                            <FileText className="size-7 text-red-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-extrabold text-gray-800 truncate">{decodeURIComponent(fileName)}</div>
+                            <div className="text-[11px] text-gray-500 mt-0.5">PDF Document</div>
+                          </div>
+                          <div className="flex flex-col gap-1.5 shrink-0">
+                            {/* View in browser */}
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary/90 transition-all"
+                            >
+                              <Eye className="size-3.5" /> View
+                            </a>
+                            {/* Download */}
+                            <a
+                              href={url}
+                              download={fileName}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 border border-gray-200 rounded-xl text-xs font-bold hover:bg-gray-200 transition-all"
+                            >
+                              <FileDown className="size-3.5" /> Download
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Default: Image preview
+                  return (
+                    <div>
+                      <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <Eye className="size-3.5" /> Photo Evidence
+                        <span className="text-[10px] text-primary font-semibold ml-auto">click to open ↗</span>
+                      </div>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block rounded-2xl overflow-hidden border-2 border-gray-200 hover:border-primary bg-gray-100 max-h-52 relative shadow-sm transition-all group cursor-pointer"
+                      >
+                        <img
+                          src={url}
+                          alt="Report attachment"
+                          className="w-full h-full object-cover max-h-52 group-hover:opacity-90 transition-opacity"
+                          onError={(e) => {
+                            // If image fails to load, try showing as a generic file download instead
+                            e.target.closest('a').outerHTML = `
+                              <a href="${url}" target="_blank" rel="noopener noreferrer"
+                                class="flex items-center gap-3 p-4 rounded-2xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-all">
+                                <span class="text-sm font-bold text-gray-700">📎 Open Attachment</span>
+                              </a>`;
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                            <Eye className="size-3.5" /> View Full Image
+                          </div>
+                        </div>
+                      </a>
+                    </div>
+                  );
+                })()}
+
+                <div>
+                  <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <MessageSquare className="size-3.5" /> Description & Situation
+                  </div>
+                  <div className="bg-gray-50 text-gray-800 p-4 rounded-2xl border border-gray-200/80 text-sm leading-relaxed font-medium whitespace-pre-wrap">
+                    {selectedReport.description ? (
+                      selectedReport.description.split(/(\[Attached Document: .*?\])/g).map((part, index) => {
+                        const match = part.match(/\[Attached Document: (.*?)\]/);
+                        if (match) {
+                          const fileName = match[1];
+                          // Assuming the LGU app uploads to "incident-reports" bucket
+                          const fileUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/incident-reports/${encodeURIComponent(fileName)}`;
+                          return (
+                            <a 
+                              key={index} 
+                              href={fileUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 my-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors w-max font-bold shadow-sm"
+                            >
+                              <FileDown className="size-4" />
+                              {fileName} (Click to View/Download)
+                            </a>
+                          );
+                        }
+                        return <span key={index}>{part}</span>;
+                      })
+                    ) : (
+                      "No description provided by the LGU."
+                    )}
+                  </div>
+                </div>
+
+                {/* Additional Data Fields */}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Severity / Level if present */}
+                  {(selectedReport.severity || selectedReport.level) && (
+                    <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-200/80">
+                      <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Severity</div>
+                      <div className="text-sm font-extrabold text-gray-800 capitalize">
+                        {(selectedReport.severity || selectedReport.level || "—").replace(/_/g, " ")}
+                      </div>
                     </div>
                   )}
 
-                  {/* Description Box */}
-                  <div>
-                    <CardBasedText className="text-xs font-extrabold text-gray-700 uppercase tracking-wider mb-2">
-                      Description & Situation
-                    </CardBasedText>
-                    <div className="bg-gray-50 text-gray-800 p-4 rounded-xl border border-gray-200/80 text-sm leading-relaxed">
-                      {selectedReport.description || "No description provided."}
+                  {/* Affected Count if present */}
+                  {selectedReport.affected_count !== undefined && selectedReport.affected_count !== null && (
+                    <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-200/80">
+                      <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Affected</div>
+                      <div className="text-sm font-extrabold text-gray-800">{selectedReport.affected_count}</div>
                     </div>
-                  </div>
+                  )}
+                </div>
 
-                  {/* Timestamp */}
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-xs flex items-center justify-between text-gray-600">
+                {/* Timestamps */}
+                <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-gray-600">
                     <span className="flex items-center gap-1.5 font-semibold">
                       <Calendar className="size-3.5 text-gray-400" /> Reported At:
                     </span>
                     <span className="font-bold text-gray-800">
-                      {selectedReport.created_at ? new Date(selectedReport.created_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Unknown"}
+                      {selectedReport.created_at
+                        ? new Date(selectedReport.created_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                        : "Unknown"}
                     </span>
                   </div>
+                  {selectedReport.accepted_at && (
+                    <div className="flex items-center justify-between text-xs text-emerald-700 pt-2 border-t border-gray-200/60">
+                      <span className="flex items-center gap-1.5 font-semibold">
+                        <CheckCircle2 className="size-3.5" /> Accepted At:
+                      </span>
+                      <span className="font-bold">
+                        {new Date(selectedReport.accepted_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Close Button */}
-              <div className="pt-4 mt-4 border-t border-gray-100">
+              {/* ── Footer Actions ── */}
+              <div className="px-5 pb-5 pt-3 border-t border-gray-100 shrink-0">
+
+                {/* Admin Accept/Reject actions – hidden when already finalized */}
+                {!(["accepted", "rejected", "verified", "resolved", "approved", "completed"].some(f =>
+                  selectedReport.status?.toLowerCase().includes(f)
+                )) && (
+                  <div className="space-y-2.5">
+                    <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider text-center mb-1">
+                      Admin Review Action
+                    </div>
+
+                    {/* Accept Button */}
+                    <button
+                      id="btn-accept-report"
+                      onClick={handleAcceptReport}
+                      disabled={isSubmittingReport}
+                      className="w-full py-3 px-4 rounded-2xl font-extrabold text-sm transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60"
+                      style={{ background: "linear-gradient(135deg, #059669 0%, #10b981 100%)", color: "#fff" }}
+                    >
+                      {isSubmittingReport ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <BadgeCheck className="size-4.5" />
+                      )}
+                      Accept Report
+                    </button>
+
+                    {/* Reject Button */}
+                    <button
+                      id="btn-reject-report"
+                      onClick={handleRejectReport}
+                      disabled={isSubmittingReport}
+                      className="w-full py-2.5 px-4 rounded-2xl font-bold text-sm transition-all border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60"
+                    >
+                      {isSubmittingReport ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <XCircle className="size-4" />
+                      )}
+                      Reject Report
+                    </button>
+                  </div>
+                )}
+
+                {/* Already finalized indicators */}
+                {(["accepted", "verified", "resolved", "approved", "completed"].some(f =>
+                  selectedReport.status?.toLowerCase().includes(f)
+                )) && (
+                  <div className="mb-3 bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3.5 flex items-center justify-center gap-2.5">
+                    <div className="p-1.5 bg-emerald-100 rounded-lg shrink-0">
+                      <BadgeCheck className="size-4 text-emerald-600" />
+                    </div>
+                    <span className="font-extrabold text-sm text-emerald-800 tracking-wide uppercase">Report Accepted & Verified</span>
+                  </div>
+                )}
+
+                {/* Close Button */}
                 <button
                   onClick={handleCloseReportModal}
-                  className="w-full py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-extrabold text-sm transition-all"
+                  className="w-full mt-2.5 py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-2xl font-bold text-sm transition-all"
                 >
                   Close
                 </button>
               </div>
+
             </div>
           </SideModal>
         </>

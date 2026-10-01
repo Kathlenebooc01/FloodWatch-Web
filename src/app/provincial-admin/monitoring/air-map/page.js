@@ -1,7 +1,11 @@
 "use client";
 
 import dynamic from 'next/dynamic'
-const AirQualityMap = dynamic(() => import('@/components/maps/AirQualityMap'), { ssr: false })
+import MapSkeleton from '@/components/skeleton/MapSkeleton'
+const AirQualityMap = dynamic(() => import('@/components/maps/AirQualityMap'), { 
+  ssr: false,
+  loading: () => <MapSkeleton />
+})
 
 export default function AirMapPage() {
   return (

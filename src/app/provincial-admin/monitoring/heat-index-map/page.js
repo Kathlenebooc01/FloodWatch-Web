@@ -1,7 +1,11 @@
 "use client";
 
 import dynamic from 'next/dynamic'
-const HeatIndexMap = dynamic(() => import('@/components/maps/HeatIndexMap'), { ssr: false })
+import MapSkeleton from '@/components/skeleton/MapSkeleton'
+const HeatIndexMap = dynamic(() => import('@/components/maps/HeatIndexMap'), { 
+  ssr: false,
+  loading: () => <MapSkeleton />
+})
 
 export default function HeatIndexMapPage() {
   return (

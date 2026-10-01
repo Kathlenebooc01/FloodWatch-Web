@@ -13,17 +13,22 @@ export default function DistressAlarmBanner() {
   const [isExpanded, setIsExpanded] = useState(false)
   const audioRef = useRef(null)
 
+  const isMountedRef = useRef(true)
+
   const fetchDistressSignals = async () => {
     try {
       const { data, error } = await supabase
         .from('distress_signals')
         .select('*, profiles:profile_id(full_name, mobile_number), municipality:municipality_id(name)')
         .order('created_at', { ascending: false })
+        .limit(50)
 
       if (error) {
         console.error("Error fetching distress signals:", error)
         return
       }
+
+      if (!isMountedRef.current) return
 
       // Filter for unacknowledged/pending signals
       const pendingSignals = (data || []).filter(s => {
@@ -32,33 +37,41 @@ export default function DistressAlarmBanner() {
         return !isAck
       })
 
-      setUnacknowledgedSignals(pendingSignals)
+      if (isMountedRef.current) {
+        setUnacknowledgedSignals(pendingSignals)
+      }
     } catch (err) {
-      console.error("Error in fetchDistressSignals:", err)
+      if (err?.name !== 'AbortError') {
+        console.error("Error in fetchDistressSignals:", err)
+      }
     }
   }
 
   useEffect(() => {
+    isMountedRef.current = true
     fetchDistressSignals()
 
-    // 1. Polling fallback every 3 seconds
+    // 1. Polling fallback every 60 seconds
     const pollInterval = setInterval(() => {
-      fetchDistressSignals()
-    }, 3000)
+      if (isMountedRef.current) {
+        fetchDistressSignals()
+      }
+    }, 60000)
 
     // 2. Realtime subscription
     const channel = supabase
       .channel('distress-signals-realtime-channel-v4')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'distress_signals' }, () => {
-        fetchDistressSignals()
+        if (isMountedRef.current) fetchDistressSignals()
       })
       .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
+        if (status === 'SUBSCRIBED' && isMountedRef.current) {
           fetchDistressSignals()
         }
       })
 
     return () => {
+      isMountedRef.current = false
       clearInterval(pollInterval)
       supabase.removeChannel(channel)
     }

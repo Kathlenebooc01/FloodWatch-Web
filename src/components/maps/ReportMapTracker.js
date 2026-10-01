@@ -181,26 +181,49 @@ export default function ReportMapTracker() {
       });
 
       console.log("📍 [ReportMapTracker Debug] Loaded incidents:", processed.length, "| Displayable pins:", processed.filter(p => p.latitude != null && p.longitude != null).length, processed);
+      if (!isMounted) return;
       setIncidents(processed);
       setCachedMonitoringData('incidentReports', processed);
+
+      // Sync the open popup card if a report is currently selected
+      setSelectedReport(prev => {
+        if (!prev || !isMounted) return prev;
+        const updated = processed.find(r => r.report_id === prev.report_id);
+        return updated || prev;
+      });
     };
 
+    let isMounted = true;
     fetchData();
 
     // 2. Realtime: Subscribe to incident_report inserts and updates
     const incidentsChannel = supabase
-      .channel('realtime-incident-map')
+      .channel('realtime-incident-map-v2')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'incident_report' },
-        () => {
-          fetchData();
-        }
+        { event: 'INSERT', schema: 'public', table: 'incident_report' },
+        () => { if (isMounted) fetchData(); }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'incident_report' },
+        () => { if (isMounted) fetchData(); }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ [ReportMapTracker] Realtime subscribed');
+        }
+      });
+
+    // 3. Fast polling every 3s — guarantees real-time feel even if realtime channel lags
+    const pollInterval = setInterval(() => {
+      if (isMounted) fetchData();
+    }, 3000);
 
     return () => {
+      isMounted = false;
       supabase.removeChannel(incidentsChannel);
+      clearInterval(pollInterval);
     };
   }, []);
 

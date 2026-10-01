@@ -8,11 +8,21 @@ import TextArea from "@/components/forms/TextArea"
 import FileInput from "@/components/forms/FileInput"
 import GeneralInput from "@/components/forms/GeneralInput"
 import TagsInput from "@/components/forms/TagsInput"
+import DropwDown from "@/components/button/DropwDown"
 import SecondaryButton from "@/components/button/SecondaryButton"
-import { Origami } from "lucide-react"
+import { Origami, X } from "lucide-react"
 import NewsPromptAssist from "./NewsPromptAssist"
 import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
 import NewsEditHeader from "./NewsEditHeader"
+
+const AVAILABLE_TAGS = [
+  "Update",
+  "Flood",
+  "Weather",
+  "Advisory",
+  "Alert",
+  "Emergency",
+]
 
 export default function NewsAddContent() {
   const router = useRouter()
@@ -22,7 +32,9 @@ export default function NewsAddContent() {
 
   // Form state for fields that Lantaw can fill
   const [headline, setHeadline] = useState("")
+  const [headlineOpen, setHeadlineOpen] = useState(false)
   const [tag, setTag] = useState([])
+  const [tagOpen, setTagOpen] = useState(false)
   const [referenceLink, setReferenceLink] = useState("")
   const [detailedContent, setDetailedContent] = useState("")
   const [author, setAuthor] = useState("")
@@ -159,16 +171,60 @@ export default function NewsAddContent() {
               />
             )}
         </fieldset>
-        <fieldset>
+        <fieldset className="relative">
             <CardSubHeader className='flex items-center gap-1'>Tags <span className="text-xs text-gray-500">(can be multiple)</span></CardSubHeader>
             {isGenerating && tag.length === 0 ? (
               <div className="input-layout"><SingleLineSkeleton /></div>
             ) : (
-              <TagsInput 
-                placeholder="Add tags" 
-                value={tag} 
-                onChange={(newTags) => setTag(newTags)}
-              />
+              <>
+                <div 
+                  className="input-layout transition-all duration-200 flex flex-wrap gap-2 items-center min-h-[42px]"
+                >
+                  {tag.map((t) => (
+                    <span key={t} className={`tag-default flex items-center gap-1 ${t === "Emergency" ? "bg-red-100 text-red-700 border-red-200" : ""}`}>
+                      {t}
+                      <button 
+                        type="button" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTag(tag.filter((tagItem) => tagItem !== t));
+                        }}
+                        className="hover:bg-black/10 rounded-full p-0.5 transition-colors cursor-pointer"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  ))}
+                  
+                  <input 
+                    readOnly
+                    placeholder={tag.length === 0 ? "Select tags" : ""}
+                    onClick={() => setTagOpen(!tagOpen)}
+                    className="outline-0 bg-transparent text-sm border-0 flex-1 min-w-[80px] cursor-pointer"
+                  />
+                </div>
+                {tagOpen && (
+                  <div className="absolute top-[80px] z-20 w-full bg-white border border-gray-200 rounded-lg shadow-md overflow-hidden">
+                    {AVAILABLE_TAGS.map((opt) => {
+                      const isSelected = tag.includes(opt);
+                      if (isSelected) return null; // Don't show already selected options
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            setTag([...tag, opt]);
+                            setTagOpen(false); // Close immediately on click
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center justify-between ${opt === "Emergency" ? "text-red-600 font-bold" : "text-gray-700"}`}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
         </fieldset>
         

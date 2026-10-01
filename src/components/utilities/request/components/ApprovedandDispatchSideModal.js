@@ -12,7 +12,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { supabase } from "@/supabase/util/supabase"
 
-export default function ApprovedandDispatchSideModal({ requestId, items, isOpen, onClose, onSuccess }) {
+export default function ApprovedandDispatchSideModal({ requestId, items, isOpen, onClose, onSuccess, userId }) {
   const [isBatch, setIsBatch] = useState(false);
   const [batches, setBatches] = useState([{ id: 1, quantity: '', expectedDate: null }]);
   const [expectedDate, setExpectedDate] = useState();
@@ -43,7 +43,7 @@ export default function ApprovedandDispatchSideModal({ requestId, items, isOpen,
         setIsLoading(true);
         setErrorMessage("");
         const { data: userData } = await supabase.auth.getUser();
-        const userId = userData?.user?.id;
+        const currentAdminId = userData?.user?.id;
 
         const utilitiesId = items?.[0]?.utilities_id;
 
@@ -90,7 +90,7 @@ export default function ApprovedandDispatchSideModal({ requestId, items, isOpen,
                     quantity_allocated: parseInt(b.quantity) || 0,
                     batch: 'Pending_Dispatch',
                     delivered_at: b.expectedDate ? b.expectedDate.toISOString() : null,
-                    approved_by: userId
+                    approved_by: currentAdminId
                 });
             });
         } else {
@@ -101,7 +101,7 @@ export default function ApprovedandDispatchSideModal({ requestId, items, isOpen,
                 quantity_allocated: requestedQuantity,
                 batch: 'Pending_Dispatch',
                 delivered_at: expectedDate ? expectedDate.toISOString() : null,
-                approved_by: userId
+                approved_by: currentAdminId
             });
         }
 
@@ -111,13 +111,23 @@ export default function ApprovedandDispatchSideModal({ requestId, items, isOpen,
 
         if (allocError) throw allocError;
 
-        const requestStatus = isBatch ? 'Partially_Allocated' : 'Fully_Allocated';
+        const requestStatus = isBatch ? 'Partially_Allocated' : 'Pending_Dispatch';
         const { error: reqError } = await supabase
             .from('resource_requests')
-            .update({ status: requestStatus, reviewed_by: userId })
+            .update({ status: requestStatus, reviewed_by: currentAdminId })
             .eq('request_id', requestId);
 
         if (reqError) throw reqError;
+
+        if (userId) {
+             await supabase.from("notifications").insert({
+               user_id: userId,
+               title: "Resources Dispatched",
+               message: "Your logistics request has been approved and dispatched. Wait for the PDRRMO to mark it as In Transit.",
+               type: "Updates",
+               target_role: "lgu"
+             });
+        }
 
         onSuccess?.();
         onClose?.();

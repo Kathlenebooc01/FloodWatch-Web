@@ -1,7 +1,11 @@
 "use client";
 
 import dynamic from 'next/dynamic'
-const ReportMapTracker = dynamic(() => import('@/components/maps/ReportMapTracker'), { ssr: false })
+import MapSkeleton from '@/components/skeleton/MapSkeleton'
+const ReportMapTracker = dynamic(() => import('@/components/maps/ReportMapTracker'), { 
+  ssr: false,
+  loading: () => <MapSkeleton />
+})
 
 export default function ReportMapPage() {
   return (

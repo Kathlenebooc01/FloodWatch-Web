@@ -11,10 +11,13 @@ import TextArea from "@/components/forms/TextArea"
 import DropwDown from "@/components/button/DropwDown"
 import PrimaryButton from "@/components/button/PrimaryButton"
 
-// Tags are fixed in the database: only "emergency" or "updates" are allowed.
 const TAG_OPTIONS = [
-  { value: "emergency", label: "Emergency" },
-  { value: "updates", label: "Updates" },
+  "Update",
+  "Flood",
+  "Weather",
+  "Advisory",
+  "Alert",
+  "Emergency",
 ]
 
 export default function AddAnnouncementModal({ onClose, onSuccess }) {
@@ -45,7 +48,7 @@ export default function AddAnnouncementModal({ onClose, onSuccess }) {
     try {
       const { error } = await supabase.from("announcement_board").insert({
         headline: headline.trim(),
-        tags: tag, // "emergency" | "updates"
+        tags: tag, // "Update" | "Flood" | "Weather" | "Advisory" | "Emergency"
         detailed_message: message.trim(),
         profile_id: userId,
       })
@@ -61,8 +64,6 @@ export default function AddAnnouncementModal({ onClose, onSuccess }) {
       setIsSaving(false)
     }
   }
-
-  const selectedLabel = TAG_OPTIONS.find((o) => o.value === tag)?.label
 
   return (
     <section>
@@ -87,19 +88,19 @@ export default function AddAnnouncementModal({ onClose, onSuccess }) {
                     <fieldset className="grid gap-3">
                         <CardBasedText className='font-semibold'>Tags</CardBasedText>
                         <div className="relative">
-                          <DropwDown type="button" onClick={() => setTagOpen((o) => !o)} className='w-full'>
-                            {selectedLabel || "Select tag"}
+                          <DropwDown type="button" onClick={() => setTagOpen((o) => !o)} className={`w-full ${tag === "Emergency" ? "text-red-600 font-bold" : ""}`}>
+                            {tag || "Select tag"}
                           </DropwDown>
                           {tagOpen && (
-                            <div className="absolute z-10 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-md overflow-hidden">
+                            <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-md overflow-hidden">
                               {TAG_OPTIONS.map((opt) => (
                                 <button
-                                  key={opt.value}
+                                  key={opt}
                                   type="button"
-                                  onClick={() => { setTag(opt.value); setTagOpen(false) }}
-                                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
+                                  onClick={() => { setTag(opt); setTagOpen(false) }}
+                                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${opt === "Emergency" ? "text-red-600 font-bold" : "text-gray-700"}`}
                                 >
-                                  {opt.label}
+                                  {opt}
                                 </button>
                               ))}
                             </div>

@@ -4,7 +4,7 @@ import PrimaryButton from "@/components/button/PrimaryButton"
 import CardBasedText from "@/components/cards/CardBasedText"
 import { supabase } from "@/supabase/util/supabase"
 
-export default function WorkFlowTool({ status, requestId, allocations, onStatusChange, onApprove }) {
+export default function WorkFlowTool({ status, requestId, allocations, onStatusChange, onApprove, userId }) {
   const [isLoading, setIsLoading] = useState(false)
 
   const handleReject = async () => {
@@ -27,13 +27,32 @@ export default function WorkFlowTool({ status, requestId, allocations, onStatusC
   const handleMarkInTransit = async () => {
       try {
           setIsLoading(true)
-          const { error } = await supabase
+
+          // Update allocations batch
+          const { error: allocError } = await supabase
               .from('resource_allocations')
               .update({ batch: 'In_Transit', dispatched_at: new Date().toISOString() })
               .eq('request_id', requestId)
-              .eq('batch', 'Pending_Dispatch') // Update all pending batches to In Transit
+              .eq('batch', 'Pending_Dispatch')
           
-          if (error) throw error
+          if (allocError) throw allocError
+
+          // Update the request status to In_Transit
+          await supabase
+              .from('resource_requests')
+              .update({ status: 'In_Transit' })
+              .eq('request_id', requestId)
+
+          if (userId) {
+             await supabase.from("notifications").insert({
+               user_id: userId,
+               title: "Resources In Transit",
+               message: "Your requested resources are now in transit. Please remember to click 'Mark as Received' once they arrive.",
+               type: "Updates",
+               target_role: "lgu"
+             });
+          }
+
           onStatusChange?.()
       } catch (error) {
           console.error('Failed to mark in transit:', error)
@@ -45,13 +64,32 @@ export default function WorkFlowTool({ status, requestId, allocations, onStatusC
   const handleMarkReturned = async () => {
       try {
           setIsLoading(true)
-          const { error } = await supabase
+
+          // Update allocations batch
+          const { error: allocError } = await supabase
               .from('resource_allocations')
               .update({ batch: 'Returned', returned_at: new Date().toISOString() })
               .eq('request_id', requestId)
-              .in('batch', ['In_Transit', 'Received']) // Update deployed batches to Returned
+              .in('batch', ['In_Transit', 'Received'])
           
-          if (error) throw error
+          if (allocError) throw allocError
+
+          // Update the request status to Returned (fully completed)
+          await supabase
+              .from('resource_requests')
+              .update({ status: 'Returned' })
+              .eq('request_id', requestId)
+
+          if (userId) {
+             await supabase.from("notifications").insert({
+               user_id: userId,
+               title: "Items Returned",
+               message: "The PDRRMO has confirmed that the returned resources have been received. Thank you for your service!",
+               type: "Updates",
+               target_role: "lgu"
+             });
+          }
+
           onStatusChange?.()
       } catch (error) {
           console.error('Failed to mark returned:', error)
@@ -61,11 +99,12 @@ export default function WorkFlowTool({ status, requestId, allocations, onStatusC
   }
 
   const isPending = status?.toLowerCase() === 'pending'
-  const isAllocated = status?.toLowerCase() === 'fully_allocated' || status?.toLowerCase() === 'partially_allocated'
+  const isAllocated = ['fully_allocated', 'partially_allocated', 'pending_dispatch', 'in_transit', 'received'].includes(status?.toLowerCase())
   
   const hasPendingDispatch = allocations?.some(a => a.batch === 'Pending_Dispatch')
-  const hasDeployed = allocations?.some(a => a.batch === 'In_Transit' || a.batch === 'Received')
+  const hasDeployed = allocations?.some(a => a.batch === 'In_Transit' || a.batch === 'Received' || a.batch === 'Returning' || a.dispatched_at)
   const isAllReturned = allocations?.length > 0 && allocations?.every(a => a.batch === 'Returned')
+  const isStillInTransit = allocations?.some(a => (!a.received_at && a.batch !== 'Received') && (a.batch === 'In_Transit' || a.dispatched_at))
 
   // Determine dynamic message
   let subText = "Choose an action to proceed";
@@ -73,7 +112,9 @@ export default function WorkFlowTool({ status, requestId, allocations, onStatusC
       if (isAllReturned) {
           subText = "All resources have been successfully returned.";
       } else if (hasDeployed) {
-          subText = "Resources are currently deployed. Mark as returned when they arrive back.";
+          subText = isStillInTransit 
+              ? "Resources are in transit. Waiting for LGU to receive them before they can be returned."
+              : "Resources are currently deployed. Mark as returned when they arrive back.";
       } else if (hasPendingDispatch) {
           subText = "Resources are allocated. Dispatch them when ready.";
       } else {
@@ -120,8 +161,9 @@ export default function WorkFlowTool({ status, requestId, allocations, onStatusC
             {isAllocated && hasDeployed && (
                 <PrimaryButton 
                     onClick={handleMarkReturned}
-                    disabled={isLoading} 
-                    className='text-xs bg-emerald-500 hover:bg-emerald-600'
+                    disabled={isLoading || isStillInTransit} 
+                    className={`text-xs ${isStillInTransit ? 'bg-gray-400 cursor-not-allowed hover:bg-gray-400' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                    title={isStillInTransit ? "Waiting for LGU to mark as received" : ""}
                 >
                     {isLoading ? 'Loading...' : 'Mark as Returned'}
                 </PrimaryButton>

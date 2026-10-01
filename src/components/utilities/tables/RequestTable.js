@@ -17,8 +17,12 @@ import TablePagination from "@/components/table/TablePagination"
 
 const statusStyles = {
   Pending: 'summary-data-icon-yellow',
+  Pending_Dispatch: 'summary-data-icon-yellow',
   Partially_Allocated: 'summary-data-icon-blue',
-  Fully_Allocated: 'summary-data-icon-green',
+  Fully_Allocated: 'summary-data-icon-blue',
+  In_Transit: 'summary-data-icon-blue',
+  Received: 'summary-data-icon-blue',
+  Returned: 'summary-data-icon-green',
   Rejected: 'summary-data-icon-red',
 }
 
@@ -52,10 +56,15 @@ export default function RequestTable() {
   useEffect(() => {
     fetchRequests()
 
-    // Real-time subscription
+    // Real-time subscription — listen to BOTH tables
+    // resource_requests changes (status updates from web)
+    // resource_allocations changes (received/returned from LGU mobile app)
     const channel = supabase
       .channel('resource_requests_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_requests' }, () => {
+        fetchRequests(false)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_allocations' }, () => {
         fetchRequests(false)
       })
       .subscribe()
