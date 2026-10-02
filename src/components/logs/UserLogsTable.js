@@ -134,6 +134,20 @@ export default function UserLogsTable({ onSelectLog }) {
     }
 
     fetchLogs()
+
+    // Real-time subscription: auto-refresh table when new login events arrive
+    const channel = supabase
+      .channel('user-login-logs-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'login_logs' },
+        () => { fetchLogs() }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   // Reset pagination when filters change

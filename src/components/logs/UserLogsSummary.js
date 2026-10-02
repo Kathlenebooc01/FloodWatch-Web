@@ -44,6 +44,20 @@ export default function UserLogsSummary() {
     }
 
     fetchSummary()
+
+    // Real-time subscription: keep summary cards in sync with new login events
+    const channel = supabase
+      .channel('user-logs-summary-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'login_logs' },
+        () => { fetchSummary() }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   return (

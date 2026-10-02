@@ -40,6 +40,37 @@ export default function NavHeader() {
     }
   }, [])
 
+  // On app open: query realtime OpenWeather telemetry for user location once per session
+  useEffect(() => {
+    const sessionKey = 'floodwatch_weather_session_logged';
+    if (typeof window === 'undefined' || sessionStorage.getItem(sessionKey)) return;
+    sessionStorage.setItem(sessionKey, '1');
+
+    async function triggerWeatherFetch() {
+      try {
+        const res = await fetch('/api/hazard-telemetry?source=app_open');
+        if (res.ok) {
+          const json = await res.json();
+          const primary = json?.stations?.[0];
+          if (primary) {
+            // Log the app-open weather fetch to API activity history
+            const { trackApiUsage } = await import('@/lib/logs/clientTracker');
+            trackApiUsage({
+              apiType: 'weather',
+              eventType: 'Execution',
+              message: `[OpenWeather API] App opened \u2014 weather fetched for ${primary.name}: ${primary.temp_c}\u00b0C, ${primary.condition}, Rain: ${primary.rain_1h_mm}mm/h | STATUS:200`,
+              throttleKey: 'weather:app_open_session',
+              throttleMs: 300000 // 5 minutes throttle for this specific log
+            });
+          }
+        }
+      } catch (err) {
+        console.debug('Initial weather telemetry fetch error:', err);
+      }
+    }
+    triggerWeatherFetch();
+  }, []);
+
   return (
     <section className="flex w-full justify-between items-center gap-2 sticky top-2 z-20">
        <RouteHeader/>

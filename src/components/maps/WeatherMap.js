@@ -7,6 +7,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { DEFAULT_MAPBOX_TOKEN } from '@/lib/constants/mapbox';
 import MapToggleSwitch from './MapToggleSwitch';
 import { supabase } from '@/supabase/util/supabase';
+import { trackApiUsage } from '@/lib/logs/clientTracker';
 
 // OpenWeather Tile Map Layers
 const WEATHER_LAYERS = [
@@ -117,6 +118,26 @@ export default function WeatherMap({ activeTab: externalTab, onTabChange: extern
         dragRotate={true}
         doubleClickZoom={true}
         touchZoomRotate={true}
+        onLoad={() => {
+          trackApiUsage({
+            apiType: 'mapbox',
+            eventType: 'Execution',
+            message: `[Mapbox GL] Dark meteorological map canvas initialized on /weather-map | STATUS:200`
+          });
+          trackApiUsage({
+            apiType: 'weather',
+            eventType: 'Execution',
+            message: `[OpenWeather API] Meteorological tile layer '${activeLayer}' attached to Mapbox canvas | STATUS:200`
+          });
+        }}
+        onError={(e) => {
+          trackApiUsage({
+            apiType: 'mapbox',
+            eventType: 'Map Error',
+            message: `[Mapbox GL] Weather map render error: ${e?.error?.message || 'Tile failed'} | STATUS:500`,
+            isError: true
+          });
+        }}
       >
         <NavigationControl position="top-right" />
 

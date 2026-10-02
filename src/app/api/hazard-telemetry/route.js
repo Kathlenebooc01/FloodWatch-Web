@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logWeatherSuccess, logWeatherError } from '@/lib/logs/apiLogger';
 
 const CEBU_MONITORING_STATIONS = [
   { id: 'metro-cebu', name: 'Metro Cebu Central', lat: 10.3157, lon: 123.8854, sector: 'Central Metropolitan' },
@@ -11,19 +12,29 @@ let cachedTelemetry = null;
 let lastTelemetryFetch = 0;
 const CACHE_TTL_MS = 60 * 1000;
 
-export async function GET() {
+export async function GET(request) {
   if (cachedTelemetry && Date.now() - lastTelemetryFetch < CACHE_TTL_MS) {
+    // Still log the cache-served access so it appears in API history
+    const primary = cachedTelemetry?.stations?.[0];
+    if (primary) {
+      await logWeatherSuccess(
+        `[OpenWeather API] Weather data served from cache for ${primary.name} (${primary.temp_c}°C, ${primary.condition}) — initial app load | STATUS:200 | LATENCY:0ms`
+      );
+    }
     return NextResponse.json(cachedTelemetry);
   }
 
   const apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
 
   if (!apiKey) {
+    await logWeatherError('OpenWeather API key is not configured in environment');
     return NextResponse.json({
       success: false,
       error: 'OpenWeather API key is not configured'
     }, { status: 500 });
   }
+
+  const fetchStartTime = Date.now();
 
   try {
     const stationPromises = CEBU_MONITORING_STATIONS.map(async (st) => {
@@ -185,9 +196,18 @@ export async function GET() {
     cachedTelemetry = result;
     lastTelemetryFetch = Date.now();
 
+    if (stations.length > 0) {
+      const latency = Date.now() - fetchStartTime;
+      const primary = stations[0];
+      await logWeatherSuccess(
+        `Fetched realtime meteorological telemetry for ${primary.name || 'Metro Cebu'} (${primary.temp_c}°C, ${primary.condition}, rain: ${primary.rain_1h_mm}mm/h) across ${stations.length} stations | STATUS:200 | LATENCY:${latency}ms`
+      );
+    }
+
     return NextResponse.json(result);
   } catch (err) {
     console.error('Hazard Telemetry API Error:', err);
+    await logWeatherError(err.message || 'Error querying OpenWeather stations');
     return NextResponse.json({
       success: false,
       error: err.message

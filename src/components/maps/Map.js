@@ -14,6 +14,7 @@ import WeatherMap from './WeatherMap';
 import SearchInput from '@/components/forms/SearchInput';
 import MapFilterDropdown from './MapFilterDropdown';
 import { getCachedMonitoringData, setCachedMonitoringData } from '@/lib/cache/monitoringCache';
+import { trackApiUsage } from '@/lib/logs/clientTracker';
 
 // ─── Layer Style Definitions for GPU Canvas Rendering ──────────────────────
 const pinCircleLayer = {
@@ -368,6 +369,24 @@ export default function FloodWatchMap({ activeTab: externalTab, onTabChange: ext
     return <WeatherMap activeTab={activeTab} onTabChange={handleTabChange} isFullscreen={isFullscreen} />;
   }
 
+  const handleMapLoad = useCallback(() => {
+    const pagePath = typeof window !== 'undefined' ? window.location.pathname : '/map';
+    trackApiUsage({
+      apiType: 'mapbox',
+      eventType: 'Execution',
+      message: `[Mapbox GL] Vector map style & interactive WebGL canvas loaded on ${pagePath} (Center: [123.88, 10.31]) | STATUS:200`
+    });
+  }, []);
+
+  const handleMapError = useCallback((e) => {
+    trackApiUsage({
+      apiType: 'mapbox',
+      eventType: 'Map Error',
+      message: `[Mapbox GL] Map failed to load: ${e?.error?.message || 'Tile or style error'} | STATUS:500`,
+      isError: true
+    });
+  }, []);
+
   return (
     <div className={`relative w-full ${isFullscreen ? 'h-screen rounded-none border-0 shadow-none' : 'h-screen min-h-[600px] rounded-2xl shadow-sm'} overflow-hidden`}>
       {/* ── Floating Controls Overlay: Toggle Switch + Standalone SearchInput & Custom Dropdown ── */}
@@ -414,6 +433,8 @@ export default function FloodWatchMap({ activeTab: externalTab, onTabChange: ext
         onClick={handleMapClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onLoad={handleMapLoad}
+        onError={handleMapError}
         cursor={cursor}
       >
         <NavigationControl position="top-right" />

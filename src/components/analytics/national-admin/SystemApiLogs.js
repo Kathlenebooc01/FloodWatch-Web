@@ -38,6 +38,54 @@ export default function SystemApiLogs() {
             if (api.api_status === 'Error' || api.api_status === 'Warning') hasError = true;
         });
       }
+
+      // Normalize raw DB api_name values into clean display names
+      const normalizeApiName = (rawName) => {
+        if (!rawName) return null;
+        const n = rawName.toLowerCase().replace(/_/g, ' ');
+        if (n.includes('lantaw')) return 'Lantaw AI';
+        if (n.includes('map')) return 'Mapbox GL';
+        if (n.includes('weather') || n.includes('open weather') || n.includes('openweather')) return 'OpenWeather API';
+        if (n.includes('sms') || n.includes('semaphore')) return 'Semaphore SMS';
+        // Title-case fallback for other names
+        return rawName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      };
+
+      // Extract [ServiceName] from the message prefix as a fallback
+      const extractServiceFromMsg = (msg) => {
+        if (!msg) return null;
+        const lower = msg.toLowerCase();
+
+        // 1. Try bracket prefix first: [ServiceName]
+        const match = msg.match(/^\[([^\]]+)\]/);
+        if (match) {
+          const extracted = match[1].toLowerCase();
+          if (extracted.includes('lantaw')) return 'Lantaw AI';
+          if (extracted.includes('mapbox') || extracted.includes('map')) return 'Mapbox GL';
+          if (extracted.includes('openweather') || extracted.includes('weather')) return 'OpenWeather API';
+          if (extracted.includes('sms') || extracted.includes('semaphore')) return 'Semaphore SMS';
+          return match[1];
+        }
+
+        // 2. Scan the full message body for known keywords
+        if (lower.includes('lantaw') || lower.includes('gemini') || lower.includes('verification') || lower.includes('chatbot') || lower.includes('extract')) return 'Lantaw AI';
+        if (lower.includes('openweather') || lower.includes('weather') || lower.includes('telemetry') || lower.includes('temperature') || lower.includes('rain') || lower.includes('humidity')) return 'OpenWeather API';
+        if (lower.includes('mapbox') || lower.includes('map loaded') || lower.includes('map canvas') || lower.includes('geocod')) return 'Mapbox GL';
+        if (lower.includes('sms') || lower.includes('semaphore') || lower.includes('otp')) return 'Semaphore SMS';
+
+        return null;
+      };
+
+      // Infer service from event_type as a final safety net
+      const inferFromEventType = (eventType) => {
+        if (!eventType) return null;
+        const e = eventType.toLowerCase();
+        if (e.includes('ai') || e.includes('lantaw')) return 'Lantaw AI';
+        if (e.includes('weather')) return 'OpenWeather API';
+        if (e.includes('map')) return 'Mapbox GL';
+        if (e.includes('sms')) return 'Semaphore SMS';
+        return null;
+      };
       
       setSystemState(hasError ? "Systems Degraded" : "All Systems Operational");
 
@@ -81,17 +129,25 @@ export default function SystemApiLogs() {
         cleanMessage = cleanMessage.replace(/^\[.*?\]\s*/, '').trim();
         cleanMessage = cleanMessage.slice(0, 55) + (cleanMessage.length > 55 ? '...' : '');
 
-        // Service Color
-        const name = (apiMap[log.api_id] || "Unknown Service").toLowerCase();
+        // Resolve service name: DB lookup → normalize → extract from message → event_type → 'Unknown Service'
+        const rawDbName = apiMap[log.api_id];
+        const resolvedName =
+            normalizeApiName(rawDbName) ||
+            extractServiceFromMsg(messageStr) ||
+            inferFromEventType(log.event_type) ||
+            'Unknown Service';
+
+        // Service dot color
+        const nameLower = resolvedName.toLowerCase();
         let dotColor = "bg-gray-500";
-        if (name.includes('lantaw')) dotColor = "bg-blue-500";
-        else if (name.includes('map')) dotColor = "bg-emerald-500";
-        else if (name.includes('weather')) dotColor = "bg-amber-500";
-        else if (name.includes('sms') || name.includes('semaphore')) dotColor = "bg-cyan-500";
+        if (nameLower.includes('lantaw')) dotColor = "bg-blue-500";
+        else if (nameLower.includes('mapbox') || nameLower.includes('map')) dotColor = "bg-emerald-500";
+        else if (nameLower.includes('weather')) dotColor = "bg-amber-500";
+        else if (nameLower.includes('sms') || nameLower.includes('semaphore')) dotColor = "bg-cyan-500";
 
         return {
             ...log,
-            serviceName: apiMap[log.api_id] || "Unknown Service",
+            serviceName: resolvedName,
             httpStatus,
             statusColor,
             stateBadge,
