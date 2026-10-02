@@ -126,9 +126,18 @@ export default function ReportMapTracker() {
   useEffect(() => {
     // 1. Fetch incident reports along with municipality and potential specific location tables
     const fetchData = async () => {
+      let munis = [];
+      try {
+        const telRes = await fetch('/api/monitoring/telemetry');
+        if (telRes.ok) {
+          const telJson = await telRes.json();
+          if (Array.isArray(telJson?.data) && telJson.data.length > 0) munis = telJson.data;
+        }
+      } catch (e) {}
+
       const [incidentsRes, munisRes, specRes, specPluralRes] = await Promise.all([
         supabase.from('incident_report').select('*').order('created_at', { ascending: false }).limit(100),
-        supabase.from('municipality_or_city').select('*'),
+        munis.length === 0 ? supabase.from('municipality_or_city').select('*') : Promise.resolve({ data: munis }),
         supabase.from('specific_location').select('*').then(r => r.error ? { data: [] } : r),
         supabase.from('specific_locations').select('*').then(r => r.error ? { data: [] } : r)
       ]);
@@ -137,19 +146,16 @@ export default function ReportMapTracker() {
         console.error("🚨 Supabase Error fetching incident_report 🚨:", incidentsRes.error.message);
         return;
       }
-      if (munisRes.error) {
-        console.error("🚨 Supabase Error fetching municipalities for incident map 🚨:", munisRes.error.message);
-      }
 
       const reports = incidentsRes.data || [];
-      const munis = munisRes.data || [];
+      const finalMunis = munis.length > 0 ? munis : (munisRes.data || []);
       const specificLocs = [...(specRes.data || []), ...(specPluralRes.data || [])];
 
       // Track occurrences of identical GPS points to prevent marker stacking!
       const coordCounts = {};
 
       const processed = reports.map((rep, index) => {
-        const matchingMuni = munis.find((m) => (m.municipality_id || m.id) === rep.municipality_id) || null;
+        const matchingMuni = finalMunis.find((m) => (m.municipality_id || m.id) === rep.municipality_id) || null;
         const matchingSpecific = specificLocs.find((s) => (s.id || s.specific_location_id || s.location_id) === rep.specific_location_id) || null;
 
         const coords = extractCoordinates(rep, matchingMuni, matchingSpecific);

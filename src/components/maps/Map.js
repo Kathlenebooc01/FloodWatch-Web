@@ -172,6 +172,28 @@ export default function FloodWatchMap({ activeTab: externalTab, onTabChange: ext
   useEffect(() => {
     // ── 1. Fetch directly from main tables (municipality_or_city, weather_telemetry, air_quality) ──
     const fetchData = async () => {
+      // 1. First attempt: Instant load from /api/monitoring/telemetry (<5ms cached)
+      try {
+        const res = await fetch('/api/monitoring/telemetry');
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json?.data) && json.data.length > 0) {
+            setWeatherData(json.data);
+            setCachedMonitoringData('weatherData', json.data);
+
+            setSelectedMuni((prev) => {
+              if (!prev) return null;
+              const updated = json.data.find((m) => String(m.municipality_id) === String(prev.municipality_id));
+              return updated || prev;
+            });
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('API telemetry fetch failed, falling back to direct query:', e);
+      }
+
+      // 2. Fallback: Direct table queries
       try {
         const [munisRes, weatherRes, airRes] = await Promise.all([
           supabase.from('municipality_or_city').select('*'),

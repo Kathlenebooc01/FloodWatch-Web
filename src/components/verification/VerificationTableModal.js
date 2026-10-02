@@ -158,11 +158,16 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
               </div>
               <div>
                 <CardBasedText className="text-xs text-gray-500 mb-1">Status</CardBasedText>
-                {isLoading ? <div className="w-20 mt-1"><SingleLineSkeleton /></div> : (
-                  <div className={`font-semibold text-sm ${data.status.toLowerCase() === 'verified' || data.status.toLowerCase() === 'approved' ? 'text-green-500' : data.status.toLowerCase() === 'pending' ? 'text-amber-500' : 'text-red-500'}`}>
-                    {data.status ? data.status.charAt(0).toUpperCase() + data.status.slice(1) : ''}
-                  </div>
-                )}
+                {isLoading ? <div className="w-20 mt-1"><SingleLineSkeleton /></div> : (() => {
+                  const isApproved = data.status?.toLowerCase() === 'verified' || data.status?.toLowerCase() === 'approved' || data.profile_is_verified || (aiResult?.ai_is_valid && Number(aiResult?.ai_confidence_score) >= 80);
+                  const isPending = !isApproved && (data.status?.toLowerCase() === 'pending' || !data.status);
+                  const displayStatus = isApproved ? 'Approved' : isPending ? 'Pending' : (data.status ? data.status.charAt(0).toUpperCase() + data.status.slice(1) : 'Pending');
+                  return (
+                    <div className={`font-semibold text-sm ${isApproved ? 'text-green-500' : isPending ? 'text-amber-500' : 'text-red-500'}`}>
+                      {displayStatus}
+                    </div>
+                  );
+                })()}
               </div>
               <div>
                 <CardBasedText className="text-xs text-gray-500 mb-1">Read Status</CardBasedText>

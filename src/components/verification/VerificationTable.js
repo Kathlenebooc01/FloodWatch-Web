@@ -31,41 +31,98 @@ export default function VerificationTable() {
   const fetchVerifications = async (showLoading = true) => {
     if (showLoading) setIsLoading(true)
 
-    const { data, error } = await supabase
-      .from("id_verification")
-      .select('*')
-      .order("is_read", { ascending: true })
-      .order("submitted_at", { ascending: false })
+    try {
+      const [verifsRes, profilesRes] = await Promise.all([
+        supabase
+          .from("id_verification")
+          .select('*')
+          .order("is_read", { ascending: true })
+          .order("submitted_at", { ascending: false }),
+        supabase
+          .from("profiles")
+          .select("id, full_name, is_verified")
+      ]);
 
-    if (data) {
-      setVerifications(data)
-    } else if (error) {
-      console.error("Error fetching verifications:", error)
+      const data = verifsRes.data;
+      const profilesData = profilesRes.data;
+
+      if (data) {
+        const profileMap = new Map();
+        if (profilesData) {
+          profilesData.forEach(p => profileMap.set(p.id, p));
+        }
+
+        const mapped = data.map(row => {
+          const prof = profileMap.get(row.user_id);
+          const isProfVerified = prof?.is_verified === true;
+          const isAiApproved = row.ai_is_valid && Number(row.ai_confidence_score) >= 80;
+          const isApproved = row.status?.toLowerCase() === 'approved' || row.status?.toLowerCase() === 'verified' || isProfVerified || isAiApproved;
+          const isRejected = row.status?.toLowerCase() === 'rejected' || (row.ai_is_valid === false && Number(row.ai_confidence_score) > 0 && Number(row.ai_confidence_score) < 80);
+
+          const effectiveStatus = isApproved ? 'approved' : (isRejected ? 'rejected' : 'pending');
+
+          return {
+            ...row,
+            status: effectiveStatus,
+            full_name: prof?.full_name || null,
+            userName: prof?.full_name || row.user_id,
+            profile_is_verified: isProfVerified,
+          };
+        });
+
+        setVerifications(mapped);
+      } else if (verifsRes.error) {
+        console.error("Error fetching verifications:", verifsRes.error);
+      }
+    } catch (err) {
+      console.error("Error in fetchVerifications:", err);
+    } finally {
+      if (showLoading) setIsLoading(false);
     }
-
-    if (showLoading) setIsLoading(false)
   }
 
   useEffect(() => {
     fetchVerifications()
 
-    // Real-time subscription
+    // 1. Listen for local custom events (when modal evaluates or updates status)
+    const handleLocalUpdate = () => fetchVerifications(false)
+    window.addEventListener('verification_status_updated', handleLocalUpdate)
+
+    // 2. Real-time subscription on both id_verification and profiles
     const channel = supabase
       .channel('id_verification_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'id_verification' }, (payload) => {
-        // Fetch fresh data when changes occur in the table
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'id_verification' }, () => {
+        fetchVerifications(false)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
         fetchVerifications(false)
       })
       .subscribe()
 
+    // 3. Fast 2-second background polling ensures 100% real-time accuracy without manual refresh
+    const pollInterval = setInterval(() => {
+      fetchVerifications(false)
+    }, 2000)
+
+    // 4. Background DB synchronization with service role
+    fetch('/api/verification/sync', { method: 'POST' }).catch(() => {})
+
     return () => {
+      window.removeEventListener('verification_status_updated', handleLocalUpdate)
       supabase.removeChannel(channel)
+      clearInterval(pollInterval)
     }
   }, [])
 
   const filtered = useMemo(() => {
     if (activeTab === "All") return verifications
-    return verifications.filter((row) => row.status.toLowerCase() === activeTab.toLowerCase())
+    if (activeTab === "Approved") {
+      return verifications.filter((row) => row.status?.toLowerCase() === 'approved' || row.status?.toLowerCase() === 'verified')
+    }
+    if (activeTab === "Unverified") {
+      return verifications.filter((row) => row.status?.toLowerCase() === 'rejected' || row.status?.toLowerCase() === 'unverified')
+    }
+    return verifications.filter((row) => row.status?.toLowerCase() === activeTab.toLowerCase())
   }, [activeTab, verifications])
 
   const handleOpenModal = async (row) => {

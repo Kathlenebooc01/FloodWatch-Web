@@ -253,6 +253,40 @@ export default function AirQualityMap({ isFullscreen = false }) {
 
     // Fetch directly from main tables: municipality_or_city, air_quality, weather_telemetry
     const fetchData = async () => {
+      // 1. Fast load from telemetry API
+      try {
+        const res = await fetch('/api/monitoring/telemetry');
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json?.data) && json.data.length > 0) {
+            if (!isMounted) return;
+            const mapped = json.data.map(muni => {
+              const numPm25 = muni.pm2_5 != null ? Number(muni.pm2_5) : null;
+              const aqiCat = getUsaAqiLevel(muni.aqi, numPm25, muni.air_quality_status);
+              return {
+                ...muni,
+                aqi_level: aqiCat.label,
+                aqi_color: aqiCat.color,
+                aqi_severity: aqiCat.severity,
+              };
+            });
+
+            setAirData(mapped);
+            setCachedMonitoringData('airData', mapped);
+
+            setSelectedMuni((prev) => {
+              if (!prev) return null;
+              const updated = mapped.find((m) => String(m.municipality_id) === String(prev.municipality_id));
+              return updated || prev;
+            });
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('API telemetry fetch failed, falling back to direct query in AirQualityMap:', e);
+      }
+
+      // 2. Direct Supabase fallback
       try {
         const [munisRes, airRes, weatherRes] = await Promise.all([
           supabase.from('municipality_or_city').select('*'),

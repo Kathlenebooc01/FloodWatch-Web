@@ -236,6 +236,53 @@ export default function HeatIndexMap({ isFullscreen = false }) {
     let isMounted = true;
 
     const fetchHeatTelemetryData = async () => {
+      // 1. Fast load from telemetry API
+      try {
+        const res = await fetch('/api/monitoring/telemetry');
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json?.data) && json.data.length > 0) {
+            if (!isMounted) return;
+            const mapped = json.data.map(muni => {
+              const temp = muni.temperature != null ? Number(muni.temperature) : null;
+              const humidity = muni.humidity != null ? Number(muni.humidity) : null;
+              let heatIdx = muni.heat_index != null ? Number(muni.heat_index) : null;
+              if (heatIdx == null && temp != null && humidity != null) {
+                heatIdx = calculateHeatIndex(temp, humidity);
+              }
+              let heatCategory = muni.heat_index_category;
+              if (!heatCategory && heatIdx != null) {
+                heatCategory = getPagasaHeatIndexCategory(heatIdx);
+              } else if (!heatCategory) {
+                heatCategory = "No Data";
+              }
+              const level = getHeatIndexLevel(heatIdx);
+
+              return {
+                ...muni,
+                heat_index: heatIdx,
+                heat_index_category: heatCategory,
+                heat_index_level: level,
+              };
+            });
+
+            setHeatData(mapped);
+            setCachedMonitoringData('heatData', mapped);
+            setLastUpdated(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }));
+
+            setSelectedMuni((prev) => {
+              if (!prev) return null;
+              const updated = mapped.find((m) => String(m.municipality_id) === String(prev.municipality_id));
+              return updated || prev;
+            });
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('API telemetry fetch failed, falling back to direct query in HeatIndexMap:', e);
+      }
+
+      // 2. Direct Supabase fallback
       try {
         const [munisRes, weatherRes] = await Promise.all([
           supabase.from('municipality_or_city').select('*'),

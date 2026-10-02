@@ -15,23 +15,39 @@ export default function SummaryData() {
   const fetchCounts = async (showLoading = true) => {
     if (showLoading) setIsLoading(true)
 
-    const { data, error } = await supabase
-      .from('id_verification')
-      .select('status')
+    try {
+      const [verifsRes, profilesRes] = await Promise.all([
+        supabase
+          .from('id_verification')
+          .select('status, ai_is_valid, ai_confidence_score, user_id'),
+        supabase
+          .from('profiles')
+          .select('id, is_verified')
+      ]);
 
-    if (error) {
-      console.error("Error fetching verification counts:", error)
+      const records = verifsRes.data || []
+      const profs = profilesRes.data || []
+      const profMap = new Map(profs.map(p => [p.id, p.is_verified]))
+
+      const isPassing = (r) => {
+        const s = r.status?.toLowerCase()
+        if (s === 'approved' || s === 'verified') return true
+        if (profMap.get(r.user_id) === true) return true
+        if (r.ai_is_valid && Number(r.ai_confidence_score ?? 0) >= 80) return true
+        return false
+      }
+
+      setCounts({
+        total: records.length,
+        pending: records.filter((r) => !isPassing(r) && r.status?.toLowerCase() !== 'rejected' && r.status?.toLowerCase() !== 'unverified').length,
+        verified: records.filter(isPassing).length,
+        unverified: records.filter((r) => r.status?.toLowerCase() === 'rejected' || r.status?.toLowerCase() === 'unverified').length,
+      })
+    } catch (err) {
+      console.error("Error fetching verification counts:", err)
+    } finally {
+      if (showLoading) setIsLoading(false)
     }
-
-    const records = data || []
-    setCounts({
-      total: records.length,
-      pending: records.filter((r) => r.status === 'pending').length,
-      verified: records.filter((r) => r.status === 'approved').length,
-      unverified: records.filter((r) => r.status === 'rejected' || r.status === 'unverified').length,
-    })
-
-    if (showLoading) setIsLoading(false)
   }
 
   useEffect(() => {
@@ -41,18 +57,23 @@ export default function SummaryData() {
     const handleLocalUpdate = () => fetchCounts(false)
     window.addEventListener('verification_status_updated', handleLocalUpdate)
 
-    // Supabase real-time listener (works if realtime is enabled on the table)
+    // Supabase real-time listener
     const channel = supabase
       .channel('summary_data_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'id_verification' }, (payload) => {
-        // Fetch fresh counts when changes occur in the table silently
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'id_verification' }, () => {
         fetchCounts(false)
       })
       .subscribe()
 
+    // 2.5s Background polling ensures instant updates without manual refresh
+    const pollInterval = setInterval(() => {
+      fetchCounts(false)
+    }, 2500)
+
     return () => {
       window.removeEventListener('verification_status_updated', handleLocalUpdate)
       supabase.removeChannel(channel)
+      clearInterval(pollInterval)
     }
   }, [])
 

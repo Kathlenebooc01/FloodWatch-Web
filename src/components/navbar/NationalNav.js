@@ -29,9 +29,14 @@ export default function NationalNav() {
       })
       .subscribe()
 
+    const pollInterval = setInterval(() => {
+      fetchUnreadStatus()
+    }, 5000)
+
     return () => {
       window.removeEventListener('verification_status_updated', handleLocalUpdate)
       supabase.removeChannel(channel)
+      clearInterval(pollInterval)
     }
   }, [])
   

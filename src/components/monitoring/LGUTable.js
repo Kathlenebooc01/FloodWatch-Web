@@ -20,14 +20,48 @@ import TablePagination from "@/components/table/TablePagination"
 import { supabase } from "@/supabase/util/supabase"
 import { ChevronRight, X, ShieldAlert, CheckCircle2, AlertTriangle, MapPin, Calendar, MessageSquare, Check, Loader2, FileCheck2, Clock, XCircle, Eye, BadgeCheck, FileDown, FileText } from "lucide-react"
 
+// In-memory module cache for instant display when switching tabs
+let cachedReports = null;
+let cachedDistressSignals = null;
+
+const getInitialReports = () => {
+  if (cachedReports) return cachedReports;
+  if (typeof window !== "undefined") {
+    try {
+      const stored = sessionStorage.getItem("floodwatch_lgu_reports");
+      if (stored) {
+        cachedReports = JSON.parse(stored);
+        return cachedReports;
+      }
+    } catch (e) {}
+  }
+  return [];
+};
+
+const getInitialDistressSignals = () => {
+  if (cachedDistressSignals) return cachedDistressSignals;
+  if (typeof window !== "undefined") {
+    try {
+      const stored = sessionStorage.getItem("floodwatch_lgu_distress");
+      if (stored) {
+        cachedDistressSignals = JSON.parse(stored);
+        return cachedDistressSignals;
+      }
+    } catch (e) {}
+  }
+  return [];
+};
+
 export default function LGUTable() {
   const [activeTab, setActiveTab] = useState("Report Table")
   
-  // Dynamic State
-  const [reports, setReports] = useState([])
-  const [distressSignals, setDistressSignals] = useState([])
-  const [isLoadingReports, setIsLoadingReports] = useState(true)
-  const [isLoadingDistress, setIsLoadingDistress] = useState(true)
+  // Dynamic State with instant cache
+  const initialReports = getInitialReports();
+  const initialDistress = getInitialDistressSignals();
+  const [reports, setReports] = useState(initialReports)
+  const [distressSignals, setDistressSignals] = useState(initialDistress)
+  const [isLoadingReports, setIsLoadingReports] = useState(() => initialReports.length === 0)
+  const [isLoadingDistress, setIsLoadingDistress] = useState(() => initialDistress.length === 0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmittingReport, setIsSubmittingReport] = useState(false)
 
@@ -52,89 +86,105 @@ export default function LGUTable() {
     setDistressPage(1)
   }, [statusFilter])
 
-  // 1. Fetch Dynamic Reports (All reports) + Municipality Names
+  // 1. Fetch Dynamic Reports (Fast single query with PostgREST join)
   const fetchReports = async (showLoading = true) => {
-    if (showLoading) setIsLoadingReports(true);
+    if (showLoading && (!cachedReports || cachedReports.length === 0)) {
+      setIsLoadingReports(true);
+    }
 
-    const [reportsRes, munisRes] = await Promise.all([
-      supabase
+    try {
+      const { data, error } = await supabase
         .from("incident_report")
-        .select("*, profiles!user_id!inner(role)")
+        .select("*, profiles!user_id!inner(role), municipality_or_city:municipality_id(name)")
         .neq("profiles.role", "citizen")
         .order("created_at", { ascending: false })
-        .limit(200),
-      supabase.from("municipality_or_city").select("*")
-    ]);
+        .limit(200);
 
-    if (reportsRes.error) {
-      console.error("🚨 Error fetching reports:", reportsRes.error.message);
-    }
+      if (error) {
+        console.error("🚨 Error fetching reports:", error.message);
+        return;
+      }
 
-    const reportItems = reportsRes.data || [];
-    const munis = munisRes.data || [];
-
-    const processedReports = reportItems.map((rep) => {
-      const muni = munis.find((m) => m.municipality_id === rep.municipality_id);
-      return {
+      const reportItems = data || [];
+      const processedReports = reportItems.map((rep) => ({
         ...rep,
-        municipality_name: muni?.name || "Unknown Municipality",
-      };
-    });
+        municipality_name: rep.municipality_or_city?.name || "Unknown Municipality",
+      }));
 
-    setReports(processedReports);
+      cachedReports = processedReports;
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem("floodwatch_lgu_reports", JSON.stringify(processedReports));
+        } catch (e) {}
+      }
 
-    // Sync open report modal in real-time (no refresh needed)
-    if (selectedReportRef.current) {
-      const updatedRep = processedReports.find((r) => r.report_id === selectedReportRef.current.report_id);
-      if (updatedRep) setSelectedReport(updatedRep);
+      setReports(processedReports);
+
+      // Sync open report modal in real-time (no refresh needed)
+      if (selectedReportRef.current) {
+        const updatedRep = processedReports.find((r) => r.report_id === selectedReportRef.current.report_id);
+        if (updatedRep) setSelectedReport(updatedRep);
+      }
+    } catch (err) {
+      console.error("🚨 Error in fetchReports:", err);
+    } finally {
+      setIsLoadingReports(false);
     }
-
-    if (showLoading) setIsLoadingReports(false);
   };
 
-  // 2. Fetch Dynamic Distress Signals + LGU Profile Details & Municipality Names
+  // 2. Fetch Dynamic Distress Signals (Fast single query with PostgREST joins)
   const fetchDistressSignals = async (showLoading = true) => {
-    if (showLoading) setIsLoadingDistress(true);
-
-    const [distressRes, profilesRes, munisRes] = await Promise.all([
-      supabase.from("distress_signals").select("*").order("created_at", { ascending: false }).limit(200),
-      supabase.from("profiles").select("id, full_name, organization_name, role, email"),
-      supabase.from("municipality_or_city").select("*")
-    ]);
-
-    if (distressRes.error) {
-      console.error("🚨 Error fetching distress_signals:", distressRes.error.message);
+    if (showLoading && (!cachedDistressSignals || cachedDistressSignals.length === 0)) {
+      setIsLoadingDistress(true);
     }
 
-    const signalItems = distressRes.data || [];
-    const profiles = profilesRes.data || [];
-    const munis = munisRes.data || [];
+    try {
+      const { data, error } = await supabase
+        .from("distress_signals")
+        .select("*, profiles:profile_id(id, full_name, organization_name, role, email), municipality_or_city:municipality_id(name)")
+        .order("created_at", { ascending: false })
+        .limit(200);
 
-    const processedSignals = signalItems.map((sig) => {
-      const profile = profiles.find((p) => p.id === sig.profile_id);
-      const muni = munis.find((m) => m.municipality_id === sig.municipality_id);
-      return {
-        ...sig,
-        lgu_name: profile?.organization_name || profile?.full_name || `LGU Unit (${sig.profile_id ? sig.profile_id.substring(0, 6) : 'Admin'})`,
-        municipality_name: muni?.name || "Unknown Municipality",
-      };
-    });
+      if (error) {
+        console.error("🚨 Error fetching distress_signals:", error.message);
+        return;
+      }
 
-    setDistressSignals(processedSignals);
-    
-    // Refresh selected signal if open in modal
-    if (selectedSignal) {
-      const updatedSelect = processedSignals.find((s) => s.distress_id === selectedSignal.distress_id);
-      if (updatedSelect) setSelectedSignal(updatedSelect);
+      const signalItems = data || [];
+      const processedSignals = signalItems.map((sig) => {
+        const profile = sig.profiles;
+        return {
+          ...sig,
+          lgu_name: profile?.organization_name || profile?.full_name || (sig.profile_id ? `LGU Unit (${sig.profile_id.substring(0, 6)})` : 'Admin'),
+          municipality_name: sig.municipality_or_city?.name || "Unknown Municipality",
+        };
+      });
+
+      cachedDistressSignals = processedSignals;
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem("floodwatch_lgu_distress", JSON.stringify(processedSignals));
+        } catch (e) {}
+      }
+
+      setDistressSignals(processedSignals);
+      
+      // Refresh selected signal if open in modal
+      if (selectedSignal) {
+        const updatedSelect = processedSignals.find((s) => s.distress_id === selectedSignal.distress_id);
+        if (updatedSelect) setSelectedSignal(updatedSelect);
+      }
+    } catch (err) {
+      console.error("🚨 Error in fetchDistressSignals:", err);
+    } finally {
+      setIsLoadingDistress(false);
     }
-
-    if (showLoading) setIsLoadingDistress(false);
   };
 
   useEffect(() => {
-    // Initial fetch with loading skeletons
-    fetchReports(true);
-    fetchDistressSignals(true);
+    // Initial fetch: quiet background fetch if already cached, otherwise show skeleton
+    fetchReports(initialReports.length === 0);
+    fetchDistressSignals(initialDistress.length === 0);
 
     // 3. Realtime Subscriptions for immediate push notifications
     const reportChannel = supabase
@@ -153,8 +203,7 @@ export default function LGUTable() {
       })
       .subscribe();
 
-    // 4. Background Auto-Polling Interval (Failsafe synchronization every 4 seconds)
-    // Ensures tables auto-update instantly even if Postgres realtime broadcast is disabled in database settings
+    // 4. Background Auto-Polling Interval (Failsafe synchronization every 60 seconds)
     const autoFetchInterval = setInterval(() => {
       fetchReports(false);
       fetchDistressSignals(false);
@@ -265,7 +314,14 @@ export default function LGUTable() {
         const updated = { ...selectedReportRef.current, status: "Verified" };
         selectedReportRef.current = updated;
         setSelectedReport(updated);
-        setReports((prev) => prev.map((r) => r.report_id === updated.report_id ? updated : r));
+        setReports((prev) => {
+          const next = prev.map((r) => r.report_id === updated.report_id ? updated : r);
+          cachedReports = next;
+          if (typeof window !== "undefined") {
+            try { sessionStorage.setItem("floodwatch_lgu_reports", JSON.stringify(next)); } catch (e) {}
+          }
+          return next;
+        });
       }
     } catch (err) {
       console.error("Unexpected error accepting report:", err);
@@ -303,7 +359,14 @@ export default function LGUTable() {
         const updated = { ...selectedReportRef.current, status: "Rejected" };
         selectedReportRef.current = updated;
         setSelectedReport(updated);
-        setReports((prev) => prev.map((r) => r.report_id === updated.report_id ? updated : r));
+        setReports((prev) => {
+          const next = prev.map((r) => r.report_id === updated.report_id ? updated : r);
+          cachedReports = next;
+          if (typeof window !== "undefined") {
+            try { sessionStorage.setItem("floodwatch_lgu_reports", JSON.stringify(next)); } catch (e) {}
+          }
+          return next;
+        });
       }
     } catch (err) {
       console.error("Unexpected error rejecting report:", err);

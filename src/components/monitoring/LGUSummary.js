@@ -7,45 +7,70 @@ import CardBasedText from "../cards/CardBasedText"
 import { MessageSquare, CircleAlert } from "lucide-react"
 import { supabase } from "@/supabase/util/supabase"
 
+// In-memory module cache for instant display when switching tabs
+let cachedSummary = null;
+
+const getInitialSummary = () => {
+  if (cachedSummary) return cachedSummary;
+  if (typeof window !== "undefined") {
+    try {
+      const stored = sessionStorage.getItem("floodwatch_lgu_summary");
+      if (stored) {
+        cachedSummary = JSON.parse(stored);
+        return cachedSummary;
+      }
+    } catch (e) {}
+  }
+  return null;
+};
+
 export default function LGUSummary() {
-  const [pendingReportsCount, setPendingReportsCount] = useState(0)
-  const [pendingDistressCount, setPendingDistressCount] = useState(0)
-  const [isLoading, setIsLoading] = useState(true)
+  const initial = getInitialSummary();
+  const [pendingReportsCount, setPendingReportsCount] = useState(() => initial?.reportsCount ?? 0)
+  const [pendingDistressCount, setPendingDistressCount] = useState(() => initial?.distressCount ?? 0)
+  const [isLoading, setIsLoading] = useState(() => !initial)
 
   const fetchCounts = async (showLoading = true) => {
-    if (showLoading) setIsLoading(true);
+    if (showLoading && !cachedSummary) setIsLoading(true);
 
-    const [reportsRes, distressRes] = await Promise.all([
-      supabase
-        .from("incident_report")
-        .select("report_id, profiles!user_id!inner(role)", { count: "exact", head: true })
-        .neq("profiles.role", "citizen")
-        .in("status", ["Ready_For_LGU", "Ready_for_LGU", "ready_for_lgu", "Pending_AI", "pending_ai", "Pending", "pending"]),
+    try {
+      const [reportsRes, distressRes] = await Promise.all([
+        supabase
+          .from("incident_report")
+          .select("report_id, profiles!user_id!inner(role)", { count: "exact", head: true })
+          .neq("profiles.role", "citizen")
+          .in("status", ["Ready_For_LGU", "Ready_for_LGU", "ready_for_lgu", "Pending_AI", "pending_ai", "Pending", "pending"]),
 
-      // Fetch exact count of distress_signals with Pending status
-      supabase
-        .from("distress_signals")
-        .select("distress_id", { count: "exact", head: true })
-        .in("status", ["Pending", "pending", "PENDING"]),
-    ]);
+        // Fetch exact count of distress_signals with Pending status
+        supabase
+          .from("distress_signals")
+          .select("distress_id", { count: "exact", head: true })
+          .in("status", ["Pending", "pending", "PENDING"]),
+      ]);
 
-    if (reportsRes.error) {
-      console.error("🚨 Error fetching pending report count:", reportsRes.error.message);
-    } else {
-      setPendingReportsCount(reportsRes.count || 0);
+      const repCount = reportsRes.error ? (cachedSummary?.reportsCount ?? 0) : (reportsRes.count || 0);
+      const disCount = distressRes.error ? (cachedSummary?.distressCount ?? 0) : (distressRes.count || 0);
+
+      const updatedSummary = { reportsCount: repCount, distressCount: disCount };
+      cachedSummary = updatedSummary;
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.setItem("floodwatch_lgu_summary", JSON.stringify(updatedSummary));
+        } catch (e) {}
+      }
+
+      setPendingReportsCount(repCount);
+      setPendingDistressCount(disCount);
+    } catch (err) {
+      console.error("🚨 Error fetching summary counts:", err);
+    } finally {
+      setIsLoading(false);
     }
-
-    if (distressRes.error) {
-      console.error("🚨 Error fetching distress signal count:", distressRes.error.message);
-    } else {
-      setPendingDistressCount(distressRes.count || 0);
-    }
-
-    if (showLoading) setIsLoading(false);
   };
 
   useEffect(() => {
-    fetchCounts(true);
+    // Revalidate quietly in the background if cached, or show skeleton on cold start
+    fetchCounts(!cachedSummary);
 
     // 1. Realtime subscriptions for instant push notifications
     const summaryChannel = supabase
@@ -58,7 +83,7 @@ export default function LGUSummary() {
       })
       .subscribe();
 
-    // 2. Background Auto-Polling Interval (synchronize silently every 4 seconds)
+    // 2. Background Auto-Polling Interval (synchronize silently every 60 seconds)
     const autoRefreshInterval = setInterval(() => {
       fetchCounts(false);
     }, 60000);
