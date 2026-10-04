@@ -552,35 +552,55 @@ export default function LGUTable() {
                   ) : reports.length > 0 ? (
                     reports
                       .slice((reportPage - 1) * itemsPerPage, reportPage * itemsPerPage)
-                      .map((item) => (
-                        <TableRow key={item.report_id || Math.random()}>
-                          <TableData className="font-bold text-gray-800">{item.municipality_name}</TableData>
-                          <TableData className="text-gray-700 font-medium capitalize">
-                            {(item.hazard_type || item.report_type || "Incident").replace(/_/g, " ")}
-                          </TableData>
-                          <TableDataMuted className="truncate max-w-[200px]">
-                            {item.created_at ? new Date(item.created_at).toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            }) : "—"}
-                          </TableDataMuted>
-                          <TableData>
-                            {getReportStatusBadge(item.status)}
-                          </TableData>
-                          <TableDataAction>
-                            <button
-                              onClick={() => handleOpenReportModal(item)}
-                              className="modal-icon-button"
-                              aria-label="View Report Details"
-                            >
-                              <ChevronRight className="size-5 text-gray-500" />
-                            </button>
-                          </TableDataAction>
-                        </TableRow>
-                      ))
+                      .map((item) => {
+                          const isEscalation = (item.hazard_type || item.report_type || "").toLowerCase().includes("support escalation");
+                          return (
+                          <TableRow
+                            key={item.report_id || Math.random()}
+                            className={isEscalation ? "bg-red-50/70 border-l-4 border-l-red-500" : ""}
+                          >
+                            <TableData className="font-bold text-gray-800">{item.municipality_name}</TableData>
+                            <TableData className={isEscalation ? "font-bold" : "text-gray-700 font-medium capitalize"}>
+                              {isEscalation ? (
+                                <span className="inline-flex items-center gap-2">
+                                  <span className="relative flex size-2.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
+                                    <span className="relative inline-flex rounded-full size-2.5 bg-red-600" />
+                                  </span>
+                                  <span className="text-red-700 font-extrabold uppercase tracking-wide text-xs">
+                                    {(item.hazard_type || item.report_type || "Incident").replace(/_/g, " ")}
+                                  </span>
+                                  <span className="bg-red-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider leading-none">
+                                    URGENT
+                                  </span>
+                                </span>
+                              ) : (
+                                (item.hazard_type || item.report_type || "Incident").replace(/_/g, " ")
+                              )}
+                            </TableData>
+                            <TableDataMuted className="truncate max-w-[200px]">
+                              {item.created_at ? new Date(item.created_at).toLocaleDateString("en-US", {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              }) : "—"}
+                            </TableDataMuted>
+                            <TableData>
+                              {getReportStatusBadge(item.status)}
+                            </TableData>
+                            <TableDataAction>
+                              <button
+                                onClick={() => handleOpenReportModal(item)}
+                                className={isEscalation ? "modal-icon-button border border-red-200 hover:bg-red-50" : "modal-icon-button"}
+                                aria-label="View Report Details"
+                              >
+                                <ChevronRight className={`size-5 ${isEscalation ? "text-red-500" : "text-gray-500"}`} />
+                              </button>
+                            </TableDataAction>
+                          </TableRow>
+                        );})
                   ) : (
                     <TableRow>
                       <TableDataMuted colSpan={5} className="text-center py-12">

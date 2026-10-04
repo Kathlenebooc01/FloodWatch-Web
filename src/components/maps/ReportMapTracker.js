@@ -136,7 +136,13 @@ export default function ReportMapTracker() {
       } catch (e) {}
 
       const [incidentsRes, munisRes, specRes, specPluralRes] = await Promise.all([
-        supabase.from('incident_report').select('*').order('created_at', { ascending: false }).limit(100),
+        // Only show citizen reports on the Report tab — LGU situational reports belong in the LGU tab
+        supabase
+          .from('incident_report')
+          .select('*, profiles!user_id!inner(role)')
+          .eq('profiles.role', 'citizen')
+          .order('created_at', { ascending: false })
+          .limit(100),
         munis.length === 0 ? supabase.from('municipality_or_city').select('*') : Promise.resolve({ data: munis }),
         supabase.from('specific_location').select('*').then(r => r.error ? { data: [] } : r),
         supabase.from('specific_locations').select('*').then(r => r.error ? { data: [] } : r)

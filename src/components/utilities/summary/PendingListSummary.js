@@ -18,6 +18,7 @@ export default function PendingListSummary() {
       .from('resource_requests')
       .select('*, profiles:requested_by(full_name), municipality_or_city:municipality_id(name)')
       .eq('status', 'Pending')
+      .eq('request_reason', 'HIGH Urgency Request')
       .order('created_at', { ascending: false })
       .limit(1)
 
@@ -47,7 +48,7 @@ export default function PendingListSummary() {
       <div className="flex justify-between items-center pb-3 border-b border-gray-100">
         <div>
           <CardSubHeader>Pending Request</CardSubHeader>
-          <CardBasedText className="text-gray-400 text-xs font-semibold">Latest request requiring attention</CardBasedText>
+          <CardBasedText className="text-gray-400 text-xs font-semibold">Latest high-urgency request requiring attention</CardBasedText>
         </div>
         <div className="summary-data-icon-amber">
           <Package className="size-5" />

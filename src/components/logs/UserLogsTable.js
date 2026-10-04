@@ -224,7 +224,7 @@ export default function UserLogsTable({ onSelectLog }) {
           <DataTable className="w-full whitespace-nowrap">
             <TableHead>
             <tr>
-              <Th>User</Th>
+              <Th>Email</Th>
               <Th>IP Address & Location</Th>
               <Th>Login Time</Th>
               <Th>Status</Th>
