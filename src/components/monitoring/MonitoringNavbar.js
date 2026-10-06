@@ -62,11 +62,10 @@ export default function MonitoringNavbar() {
         repQuery = repQuery.gt("created_at", lastReportView)
       }
 
-      // 2. LGU tab badge — non-citizen (LGU/admin situational) reports + distress signals
+      // 2. LGU tab badge — active situational/incident reports + distress signals
       let lguRepQuery = supabase
         .from("incident_report")
-        .select("report_id, profiles!user_id!inner(role)", { count: "exact", head: true })
-        .neq("profiles.role", "citizen")
+        .select("report_id", { count: "exact", head: true })
         .in("status", ACTIVE_REPORT_STATUSES)
 
       if (lastLguView) {
