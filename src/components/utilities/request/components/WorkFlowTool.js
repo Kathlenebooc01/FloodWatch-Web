@@ -3,6 +3,7 @@ import { useState } from "react"
 import PrimaryButton from "@/components/button/PrimaryButton"
 import CardBasedText from "@/components/cards/CardBasedText"
 import { supabase } from "@/supabase/util/supabase"
+import { normalizeRequestStatus, statusVariants } from "@/lib/domain-values.mjs"
 
 export default function WorkFlowTool({ status, requestId, allocations, onStatusChange, onApprove, userId }) {
   const [isLoading, setIsLoading] = useState(false)
@@ -33,15 +34,16 @@ export default function WorkFlowTool({ status, requestId, allocations, onStatusC
               .from('resource_allocations')
               .update({ batch: 'In_Transit', dispatched_at: new Date().toISOString() })
               .eq('request_id', requestId)
-              .eq('batch', 'Pending_Dispatch')
+              .in('batch', statusVariants(['Pending_Dispatch']))
           
           if (allocError) throw allocError
 
           // Update the request status to In_Transit
-          await supabase
+          const { error: requestError } = await supabase
               .from('resource_requests')
               .update({ status: 'In_Transit' })
               .eq('request_id', requestId)
+          if (requestError) throw requestError
 
           if (userId) {
              await supabase.from("notifications").insert({
@@ -70,15 +72,16 @@ export default function WorkFlowTool({ status, requestId, allocations, onStatusC
               .from('resource_allocations')
               .update({ batch: 'Returned', returned_at: new Date().toISOString() })
               .eq('request_id', requestId)
-              .in('batch', ['In_Transit', 'Received'])
+              .in('batch', statusVariants(['In_Transit', 'Received', 'Returning']))
           
           if (allocError) throw allocError
 
           // Update the request status to Returned (fully completed)
-          await supabase
+          const { error: requestError } = await supabase
               .from('resource_requests')
               .update({ status: 'Returned' })
               .eq('request_id', requestId)
+          if (requestError) throw requestError
 
           if (userId) {
              await supabase.from("notifications").insert({
@@ -98,13 +101,14 @@ export default function WorkFlowTool({ status, requestId, allocations, onStatusC
       }
   }
 
-  const isPending = status?.toLowerCase() === 'pending'
-  const isAllocated = ['fully_allocated', 'partially_allocated', 'pending_dispatch', 'in_transit', 'received'].includes(status?.toLowerCase())
+  const normalizedStatus = normalizeRequestStatus(status)
+  const isPending = normalizedStatus === 'Pending'
+  const isAllocated = ['Fully_Allocated', 'Partially_Allocated', 'Pending_Dispatch', 'In_Transit', 'Received'].includes(normalizedStatus)
   
-  const hasPendingDispatch = allocations?.some(a => a.batch === 'Pending_Dispatch')
-  const hasDeployed = allocations?.some(a => a.batch === 'In_Transit' || a.batch === 'Received' || a.batch === 'Returning' || a.dispatched_at)
-  const isAllReturned = allocations?.length > 0 && allocations?.every(a => a.batch === 'Returned')
-  const isStillInTransit = allocations?.some(a => (!a.received_at && a.batch !== 'Received') && (a.batch === 'In_Transit' || a.dispatched_at))
+  const hasPendingDispatch = allocations?.some(a => normalizeRequestStatus(a.batch || a.status) === 'Pending_Dispatch')
+  const hasDeployed = allocations?.some(a => ['In_Transit', 'Received', 'Returning'].includes(normalizeRequestStatus(a.batch || a.status)) || a.dispatched_at)
+  const isAllReturned = allocations?.length > 0 && allocations?.every(a => a.returned_at || normalizeRequestStatus(a.batch || a.status) === 'Returned')
+  const isStillInTransit = allocations?.some(a => !a.received_at && !a.delivered_at && !a.returned_at && !['Received', 'Returned', 'Returning'].includes(normalizeRequestStatus(a.batch || a.status)) && (normalizeRequestStatus(a.batch || a.status) === 'In_Transit' || a.dispatched_at))
 
   // Determine dynamic message
   let subText = "Choose an action to proceed";

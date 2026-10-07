@@ -17,94 +17,88 @@ import {
   Radio
 } from "lucide-react";
 
-const STORAGE_KEY = 'lantaw_ai_prioritization_cache';
-const DEBOUNCE_MS = 2000; // 2 seconds debounce for responsive real-time auto-prioritization
-
 export default function AiPrioritizationCard() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [lastAnalyzedAt, setLastAnalyzedAt] = useState(null);
-  const [isLive, setIsLive] = useState(true);
+  const [isLive, setIsLive] = useState(false);
   const [newRequestAlert, setNewRequestAlert] = useState(false);
-  const debounceTimer = useRef(null);
+  const inFlight = useRef(null);
+  const revision = useRef(0);
+  const mounted = useRef(false);
 
-  // ── Stable analysis function (used by button + realtime) ──
-  const runAiAnalysis = useCallback(async (silent = false) => {
-    if (!silent) setError(null);
+  const resetAnalysis = useCallback(() => {
+    revision.current += 1;
+    inFlight.current?.abort();
+    inFlight.current = null;
+    setData(null);
+    setError(null);
+    setLoading(false);
+    setLastAnalyzedAt(null);
+    setNewRequestAlert(false);
+  }, []);
+
+  // Analysis is exclusively invoked by the button. No persistent cross-login cache.
+  const runAiAnalysis = useCallback(async () => {
+    if (inFlight.current) return;
+    const controller = new AbortController();
+    inFlight.current = controller;
+    const startedAtRevision = revision.current;
+    setError(null);
     setLoading(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Please sign in again to analyze requests.');
       const res = await fetch('/api/lantaw/prioritize-requests', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(130000)]),
       });
       const result = await res.json();
-      if (!res.ok || !result.success) {
-        throw new Error(result.error || "Failed to analyze requests with AI.");
-      }
-      const now = new Date().toISOString();
+      if (!res.ok || !result.success) throw new Error(result.error || 'AI analysis failed. Please try again.');
+      if (!mounted.current || controller.signal.aborted) return;
       setData(result.data);
-      setLastAnalyzedAt(now);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ data: result.data, timestamp: now }));
+      setLastAnalyzedAt(result.data.analyzed_at);
+      setNewRequestAlert(revision.current !== startedAtRevision);
     } catch (err) {
-      console.error("AI Prioritization Error:", err);
-      if (!silent) setError(err.message || "An unexpected error occurred during AI analysis.");
+      if (mounted.current && !controller.signal.aborted) {
+        setError(err.name === 'TimeoutError' ? 'Analysis took too long. Please try again.' : err.message);
+      }
     } finally {
-      setLoading(false);
+      if (inFlight.current === controller) {
+        inFlight.current = null;
+        if (mounted.current) setLoading(false);
+      }
     }
   }, []);
 
-  // ── Load cached result on mount or auto-analyze if first time ──
   useEffect(() => {
-    let hasCachedData = false;
-    try {
-      const cached = localStorage.getItem(STORAGE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed?.data) {
-          setData(parsed.data);
-          hasCachedData = true;
-        }
-        if (parsed?.timestamp) setLastAnalyzedAt(parsed.timestamp);
-      }
-    } catch {
-      // ignore parse errors
-    }
-
-    // Auto-run if no cached analysis exists yet
-    if (!hasCachedData) {
-      runAiAnalysis(true);
-    }
-  }, [runAiAnalysis]);
-
-  // ── Supabase Realtime: auto-trigger AI when new request arrives or changes ──
-  useEffect(() => {
+    mounted.current = true;
     const handleDbChange = () => {
-      setIsLive(true);
+      revision.current += 1;
       setNewRequestAlert(true);
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
-      debounceTimer.current = setTimeout(async () => {
-        await runAiAnalysis(true);
-        setTimeout(() => setNewRequestAlert(false), 4000);
-      }, DEBOUNCE_MS);
     };
-
     const channel = supabase
       .channel('lantaw_ai_realtime_channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_requests' }, handleDbChange)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_request_items' }, handleDbChange)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_allocations' }, handleDbChange)
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          setIsLive(true);
-        }
-      });
-
+      .subscribe(status => setIsLive(status === 'SUBSCRIBED'));
+    let sessionIdentity;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const identity = session ? session.user.id + ':' + (session.user.last_sign_in_at || '') : null;
+      if (event === 'SIGNED_OUT' || (sessionIdentity !== undefined && identity !== sessionIdentity)) resetAnalysis();
+      sessionIdentity = identity;
+    });
     return () => {
+      mounted.current = false;
+      inFlight.current?.abort();
+      inFlight.current = null;
+      subscription.unsubscribe();
       supabase.removeChannel(channel);
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
-  }, [runAiAnalysis]);
+  }, [resetAnalysis]);
 
   const getPriorityBadge = (priority) => {
     switch (priority?.toUpperCase()) {
@@ -144,23 +138,23 @@ export default function AiPrioritizationCard() {
               <Sparkles className="w-3 h-3 text-indigo-600" />
               AI Powered
             </span>
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200" title="Connected to Supabase Realtime — automatic updates on new requests">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200" title="Request changes are monitored live; analysis requires your click">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              Live Sync Active
+              {isLive ? 'Live Sync Active' : 'Live Sync Reconnecting'}
             </span>
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            Correlates historical disaster resource requests with live OpenWeather telemetry and municipal flood vulnerability.
+            Prioritizes active resource requests using available live weather readings. Analysis runs when you click Analyze.
           </p>
         </div>
 
         {/* Action Button */}
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
           <button
-            onClick={() => runAiAnalysis(false)}
+            onClick={runAiAnalysis}
             disabled={loading}
             className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-lg shadow-sm transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
           >
@@ -198,9 +192,9 @@ export default function AiPrioritizationCard() {
         <div className="mt-3 p-2.5 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between text-xs text-blue-800 animate-pulse">
           <span className="flex items-center gap-2 font-medium">
             <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600" />
-            <span>⚡ New resource request activity detected — updating AI prioritization in real-time...</span>
+            <span>Requests changed. Click Analyze to refresh the prioritization.</span>
           </span>
-          <span className="text-[10px] text-blue-600 bg-blue-100/60 px-2 py-0.5 rounded font-semibold">Auto-evaluating</span>
+          <span className="text-[10px] text-blue-600 bg-blue-100/60 px-2 py-0.5 rounded font-semibold">Awaiting analysis</span>
         </div>
       )}
 
@@ -219,17 +213,17 @@ export default function AiPrioritizationCard() {
             <CloudRain className="w-6 h-6" />
           </div>
           <h3 className="text-sm font-semibold text-gray-800">
-            Ready for Automated AI Priority Evaluation
+            Ready for AI Priority Evaluation
           </h3>
           <p className="text-xs text-gray-500 max-w-md mx-auto mt-1 mb-4">
-            Click the button above to synthesize incoming resource requests, weather rainfall rates, wind speed, and historical LGU disaster demand.
+            Click Analyze to review active resource requests alongside available rainfall and wind readings.
           </p>
           <div className="grid sm:grid-cols-3 gap-3 max-w-xl mx-auto text-left">
             <div className="p-3 bg-white rounded-lg border border-gray-100 shadow-2xs">
               <div className="text-[11px] font-semibold text-gray-500 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-indigo-500" /> Historical Patterns
+                <Clock className="w-3 h-3 text-indigo-500" /> Active Requests
               </div>
-              <p className="text-xs text-gray-700 mt-1">Evaluates past LGU request frequencies and recurring flood corridors.</p>
+              <p className="text-xs text-gray-700 mt-1">Reviews the urgency, supplies and details of current LGU requests.</p>
             </div>
             <div className="p-3 bg-white rounded-lg border border-gray-100 shadow-2xs">
               <div className="text-[11px] font-semibold text-gray-500 flex items-center gap-1">
@@ -254,7 +248,7 @@ export default function AiPrioritizationCard() {
             <Sparkles className="w-6 h-6 animate-spin" />
           </div>
           <h4 className="text-sm font-medium text-gray-900">
-            Lantaw AI is analyzing historical data & live weather...
+            Lantaw AI is analyzing active requests and available weather...
           </h4>
           <p className="text-xs text-gray-500 max-w-md mx-auto">
             Correlating OpenWeather monitoring stations with municipal emergency requests to calculate urgency scores.
@@ -268,6 +262,11 @@ export default function AiPrioritizationCard() {
       {/* ── Analysis Results ── */}
       {data && !loading && (
         <div className="mt-4 space-y-4">
+          {data.total_active_requests > data.total_requests_analyzed && (
+            <p className="text-xs text-amber-700">
+              Analyzed the latest {data.total_requests_analyzed} of {data.total_active_requests} active requests.
+            </p>
+          )}
           {/* Executive Summary Card */}
           <div className="p-4 bg-indigo-900 text-white rounded-xl shadow-xs">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-indigo-800 pb-3 mb-3">
@@ -305,8 +304,8 @@ export default function AiPrioritizationCard() {
                     <div className="text-gray-500 text-[10px] capitalize">{st.condition}</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold text-indigo-600">{st.rain_1h_mm ?? 0} mm/h</div>
-                    <div className="text-[10px] text-gray-400">{st.wind_kmh ?? 0} km/h wind</div>
+                    <div className="font-bold text-indigo-600">{st.available === false ? 'Unavailable' : (st.rain_1h_mm + ' mm/h')}</div>
+                    <div className="text-[10px] text-gray-400">{st.available === false ? 'No live reading' : (st.wind_kmh + ' km/h wind')}</div>
                   </div>
                 </div>
               ))}
@@ -328,7 +327,7 @@ export default function AiPrioritizationCard() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {data.prioritized_queue?.map((item) => (
-                  <tr key={item.rank} className="hover:bg-slate-50/70 transition-colors">
+                  <tr key={item.request_id} className="hover:bg-slate-50/70 transition-colors">
                     {/* Rank & Urgency */}
                     <td className="py-3 px-3 whitespace-nowrap">
                       <div className="flex items-center gap-2">

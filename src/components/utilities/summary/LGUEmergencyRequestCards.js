@@ -1,10 +1,12 @@
 ﻿"use client"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/supabase/util/supabase"
 import { format } from "date-fns"
+import { isHighUrgencyRequest, normalizeRequestStatus } from "@/lib/domain-values.mjs"
+import { fetchHighUrgencyRequests } from "@/lib/emergency-requests.mjs"
 import {
-  Package, Search, ShieldAlert, Zap, ArrowUpRight, Hash, RefreshCw
+  Package, Search, ShieldAlert, Zap, ArrowUpRight, Hash
 } from "lucide-react"
 
 // -- Status config
@@ -44,7 +46,7 @@ const STATUS_CONFIG = {
 }
 
 const getStatusConfig = (status) =>
-  STATUS_CONFIG[status] || {
+  STATUS_CONFIG[normalizeRequestStatus(status)] || {
     label: (status || "Unknown").replace(/_/g, " "),
     bg: "bg-gray-50", border: "border-gray-200", text: "text-gray-600",
     dot: "bg-gray-400", pillBg: "bg-gray-100",
@@ -78,7 +80,7 @@ function RequestCard({ request, onClick }) {
     request.profiles?.full_name ||
     "Unknown LGU"
   const requestType = (request.request_type || request.type || "Emergency Request").replace(/_/g, " ")
-  const isUrgent = request.status === "Pending" || request.status === "Pending_Dispatch"
+  const isUrgent = isHighUrgencyRequest(request)
 
   return (
     <button
@@ -137,33 +139,65 @@ export default function LGUEmergencyRequestCards() {
   const [requests, setRequests] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
+  const [fetchError, setFetchError] = useState(null)
+  const currentFetch = useRef(null)
+  const [isLive, setIsLive] = useState(false)
 
   const fetchRequests = useCallback(async (showLoading = true) => {
+    if (currentFetch.current) return
+    const controller = new AbortController()
+    currentFetch.current = controller
     if (showLoading) setIsLoading(true)
     try {
-      const { data, error } = await supabase
-        .from("resource_requests")
-        .select("*, profiles:requested_by(full_name, municipality_or_city:municipality_id(name)), municipality_or_city(name)")
-        .eq("request_reason", "HIGH Urgency Request")
-        .in("status", ["Pending", "Pending_Dispatch"])
-        .order("created_at", { ascending: false })
-        .limit(100)
-      if (!error && data) setRequests(data)
+      const data = await fetchHighUrgencyRequests(supabase, AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]))
+      if (controller.signal.aborted) return
+      setRequests(data)
+      setFetchError(null)
     } catch (err) {
+      if (controller.signal.aborted) return
+      setFetchError("Unable to sync emergency requests right now. Retrying automatically.")
       console.error("[LGUEmergencyRequestCards] fetch error:", err)
     } finally {
-      if (showLoading) setIsLoading(false)
+      if (currentFetch.current === controller && !controller.signal.aborted) {
+        currentFetch.current = null
+        setIsLoading(false)
+      }
     }
   }, [])
 
   useEffect(() => {
-    fetchRequests()
+    const initialFetch = setTimeout(() => fetchRequests(), 0)
+    let refreshTimer
+    const scheduleRefresh = () => {
+      clearTimeout(refreshTimer)
+      refreshTimer = setTimeout(() => fetchRequests(false), 350)
+    }
     const channel = supabase
       .channel("lgu_emergency_request_cards_v1")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "resource_requests" }, () => fetchRequests(false))
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "resource_requests" }, () => fetchRequests(false))
-      .subscribe()
-    return () => supabase.removeChannel(channel)
+      .on("postgres_changes", { event: "*", schema: "public", table: "resource_requests" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, scheduleRefresh)
+      .subscribe(status => {
+        setIsLive(status === "SUBSCRIBED")
+        if (status === "SUBSCRIBED") scheduleRefresh()
+      })
+    const syncVisible = () => {
+      if (document.visibilityState === "visible") scheduleRefresh()
+    }
+    const fallbackSync = setInterval(syncVisible, 5000)
+    window.addEventListener("focus", syncVisible)
+    window.addEventListener("online", syncVisible)
+    document.addEventListener("visibilitychange", syncVisible)
+    return () => {
+      clearTimeout(initialFetch)
+      clearTimeout(refreshTimer)
+      clearInterval(fallbackSync)
+      window.removeEventListener("focus", syncVisible)
+      window.removeEventListener("online", syncVisible)
+      document.removeEventListener("visibilitychange", syncVisible)
+      currentFetch.current?.abort()
+      currentFetch.current = null
+      supabase.removeChannel(channel)
+    }
   }, [fetchRequests])
 
   const filtered = requests.filter((req) => {
@@ -198,7 +232,7 @@ export default function LGUEmergencyRequestCards() {
               {isLoading
                 ? "Loading..."
                 : requests.length > 0
-                  ? <><span className="text-red-600 font-bold">{requests.length} active</span>{" - awaiting immediate response"}</>
+                  ? <><span className="text-red-600 font-bold">{requests.length} active</span>{" - high urgency"}</>
                   : "No active high-urgency requests at the moment."
               }
             </p>
@@ -216,17 +250,13 @@ export default function LGUEmergencyRequestCards() {
               className="pl-8 pr-3 py-2 text-xs font-medium border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 w-44 transition-all"
             />
           </div>
-          <button
-            onClick={() => fetchRequests(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold border border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors text-gray-700"
-            title="Refresh"
-          >
-            <RefreshCw className="size-3.5" />
-            Refresh
-          </button>
+          <span role="status" className="text-xs font-semibold text-emerald-700 whitespace-nowrap">
+            {isLive ? "Live updates" : "Auto syncing"}
+          </span>
         </div>
       </div>
 
+      {fetchError && <p role="alert" className="text-xs text-red-600">{fetchError}</p>}
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
@@ -249,7 +279,7 @@ export default function LGUEmergencyRequestCards() {
           <div>
             <p className="font-bold text-gray-700 text-sm">No active emergency requests</p>
             <p className="text-xs text-gray-400 mt-0.5">
-              {searchQuery ? "Try adjusting your search." : "All high-urgency requests have been dispatched or resolved."}
+              {searchQuery ? "Try adjusting your search." : "No active High urgency requests are available."}
             </p>
           </div>
           {searchQuery && (

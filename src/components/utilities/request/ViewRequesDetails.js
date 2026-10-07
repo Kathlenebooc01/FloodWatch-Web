@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import GeneralCard from "@/components/cards/GeneralCard"
 import CardSubHeader from "@/components/cards/CardSubHeader"
 import RequestStatus from "./components/RequestStatus"
@@ -11,6 +11,7 @@ import WorkFlowTool from "./components/WorkFlowTool"
 import LogisticsDetail from "./components/LogisticsDetail"
 import ApprovedandDispatchSideModal from "./components/ApprovedandDispatchSideModal"
 import { supabase } from "@/supabase/util/supabase"
+import { requestProgress } from "@/lib/domain-values.mjs"
 import { DEFAULT_MAPBOX_TOKEN } from "@/lib/constants/mapbox"
 
 export default function ViewRequesDetails({ id }) {
@@ -21,90 +22,80 @@ export default function ViewRequesDetails({ id }) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const isMountedRef = useRef(true)
 
-  const refetchData = async (isInitial = false) => {
-    if (isInitial && !request) {
-      setIsLoading(true)
+  const currentFetch = useRef(null)
+  const refreshQueued = useRef(false)
+  const refetchData = useCallback(async function loadData(isInitial = false) {
+    if (currentFetch.current) {
+      refreshQueued.current = true
+      return
     }
+    const controller = new AbortController()
+    currentFetch.current = controller
+    if (isInitial) setIsLoading(true)
     try {
-      const { data: reqData, error: reqErr } = await supabase
-        .from('resource_requests')
-        .select(`
-          *,
-          profiles:requested_by (
-            id,
-            municipality_or_city:municipality_id (name)
-          )
-        `)
-        .eq('request_id', id)
-        .single()
-      if (!isMountedRef.current) return
-      if (!reqErr && reqData) setRequest(reqData)
-
-      const { data: itemsData, error: itemsErr } = await supabase
-        .from('resource_request_items')
-        .select('*, utilities:utilities_id(name, type)')
-        .eq('request_id', id)
-      if (!isMountedRef.current) return
-      if (!itemsErr) setItems(itemsData || [])
-
-      const { data: allocData, error: allocErr } = await supabase
-        .from('resource_allocations')
-        .select('*, profiles:approved_by(full_name)')
-        .eq('request_id', id)
-        .order('batch', { ascending: true })
-      if (!isMountedRef.current) return
-      if (!allocErr) setAllocations(allocData || [])
+      const [reqRes, itemsRes, allocRes] = await Promise.all([
+        supabase.from('resource_requests')
+          .select('*, profiles:requested_by(id, municipality_or_city:municipality_id(name))')
+          .eq('request_id', id).abortSignal(controller.signal).single(),
+        supabase.from('resource_request_items').select('*, utilities:utilities_id(name, type)')
+          .eq('request_id', id).abortSignal(controller.signal),
+        supabase.from('resource_allocations').select('*, profiles:approved_by(full_name)')
+          .eq('request_id', id).order('batch', { ascending: true }).abortSignal(controller.signal),
+      ])
+      if (!isMountedRef.current || controller.signal.aborted) return
+      if (!reqRes.error && reqRes.data) setRequest(reqRes.data)
+      if (!itemsRes.error) setItems(itemsRes.data || [])
+      if (!allocRes.error) setAllocations(allocRes.data || [])
     } catch (error) {
-      if (error?.name !== 'AbortError') {
-        console.error(error)
-      }
+      if (!controller.signal.aborted) console.error(error)
     } finally {
-      if (isMountedRef.current && isInitial) {
-        setIsLoading(false)
+      if (currentFetch.current === controller) {
+        currentFetch.current = null
+        if (isMountedRef.current && !controller.signal.aborted) {
+          setIsLoading(false)
+          if (refreshQueued.current) {
+            refreshQueued.current = false
+            queueMicrotask(() => { if (isMountedRef.current && !controller.signal.aborted) loadData(false) })
+          }
+        }
       }
     }
-  }
+  }, [id])
 
   useEffect(() => {
     if (!id) return
     isMountedRef.current = true
-
-    // Initial fetch shows loading only if no request yet
-    refetchData(true)
-
-    const channel = supabase
-      .channel(`request-${id}-v3`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_requests', filter: `request_id=eq.${id}` }, () => {
-        if (isMountedRef.current) refetchData(false)
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_allocations', filter: `request_id=eq.${id}` }, () => {
-        if (isMountedRef.current) refetchData(false)
-      })
+    const initialFetch = setTimeout(() => refetchData(true), 0)
+    let refreshTimer
+    const scheduleRefresh = () => {
+      clearTimeout(refreshTimer)
+      refreshTimer = setTimeout(() => refetchData(false), 350)
+    }
+    const channel = supabase.channel('request-' + id + '-v4')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_requests', filter: 'request_id=eq.' + id }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_request_items', filter: 'request_id=eq.' + id }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_allocations', filter: 'request_id=eq.' + id }, scheduleRefresh)
       .subscribe()
-
-    // Fast polling every 3s in background (NEVER triggers isLoading or DOM unmount)
-    const pollInterval = setInterval(() => {
-      if (isMountedRef.current) {
-        refetchData(false)
-      }
-    }, 3000)
-
+    const refreshVisible = () => {
+      if (document.visibilityState === 'visible') scheduleRefresh()
+    }
+    document.addEventListener('visibilitychange', refreshVisible)
+    const pollInterval = setInterval(refreshVisible, 30000)
     return () => {
       isMountedRef.current = false
-      supabase.removeChannel(channel)
+      clearTimeout(initialFetch)
+      clearTimeout(refreshTimer)
       clearInterval(pollInterval)
+      document.removeEventListener('visibilitychange', refreshVisible)
+      currentFetch.current?.abort()
+      currentFetch.current = null
+      refreshQueued.current = false
+      supabase.removeChannel(channel)
     }
-  }, [id])
+  }, [id, refetchData])
 
   const mapStatusToStatusBar = (status, allocs) => {
-    if (!allocs || allocs.length === 0) return 'Pending_Dispatch'
-
-    // Check timestamps set by mobile app AND batch set by web
-    if (allocs.every(a => a.returned_at || a.batch === 'Returned')) return 'Returned'
-    if (allocs.some(a => a.received_at || a.batch === 'Received')) return 'Received'
-    if (allocs.some(a => a.dispatched_at || a.batch === 'In_Transit')) return 'In_Transit'
-
-    return 'Pending_Dispatch'
+    return requestProgress(status, allocs || [])
   }
 
   const parseCoordinates = (address) => {
@@ -138,7 +129,7 @@ export default function ViewRequesDetails({ id }) {
     return null;
   }
 
-  const coords = parseCoordinates(request?.drop_off_address);
+  const coords = useMemo(() => parseCoordinates(request?.drop_off_address), [request?.drop_off_address]);
   const [geocodeCoords, setGeocodeCoords] = useState(null);
 
   useEffect(() => {

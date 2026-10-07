@@ -5,6 +5,7 @@ import CardBasedText from "@/components/cards/CardBasedText"
 import CardHeader from "@/components/cards/CardHeader"
 import { Package } from "lucide-react"
 import { supabase } from "@/supabase/util/supabase"
+import { statusVariants } from "@/lib/domain-values.mjs"
 
 export default function PendingRequest() {
   const [count, setCount] = useState(0)
@@ -13,7 +14,7 @@ export default function PendingRequest() {
     const { count: pendingCount, error } = await supabase
       .from('resource_requests')
       .select('*', { count: 'exact', head: true })
-      .in('status', ['Pending', 'pending'])
+      .in('status', statusVariants(['Pending']))
     
     if (!error && pendingCount !== null) {
       setCount(pendingCount)
@@ -21,7 +22,7 @@ export default function PendingRequest() {
   }
 
   useEffect(() => {
-    fetchCount()
+    const initialFetch = setTimeout(() => fetchCount(), 0)
     
     const channel = supabase
       .channel('pending-requests-changes')
@@ -29,6 +30,7 @@ export default function PendingRequest() {
       .subscribe()
 
     return () => {
+      clearTimeout(initialFetch)
       supabase.removeChannel(channel)
     }
   }, [])

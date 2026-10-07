@@ -51,19 +51,60 @@ export default function MainChat() {
     try {
       const res = await fetch('/api/lantaw', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
         body: JSON.stringify({
           prompt: userPrompt.trim(),
           conversationId: currentConvoId,
           userId: userId,
+          history: messages.slice(-8),
         })
       })
 
-      const data = await res.json()
+      let data;
+      let streamed = false;
+      if (res.headers.get('content-type')?.includes('application/x-ndjson')) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        const messageId = uuidv4();
+        const receive = line => {
+          if (!line.trim()) return;
+          const event = JSON.parse(line);
+          if (event.type === 'partial' || event.type === 'done') {
+            if (!streamed) {
+              streamed = true;
+              setMessages(prev => [...prev, { id: messageId, role: 'assistant', content: event.response }]);
+            } else {
+              setMessages(prev => prev.map(message => message.id === messageId ? { ...message, content: event.response } : message));
+            }
+          }
+          if (event.type === 'error') {
+            if (streamed) setMessages(prev => prev.filter(message => message.id !== messageId));
+            streamed = false;
+          }
+          if (event.type === 'done' || event.type === 'error') data = event;
+        };
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+            let newline;
+            while ((newline = buffer.indexOf('\n')) !== -1) {
+              receive(buffer.slice(0, newline));
+              buffer = buffer.slice(newline + 1);
+            }
+            if (done) break;
+          }
+          if (buffer.trim()) receive(buffer);
+          if (!data) throw new Error('Lantaw response ended unexpectedly.');
+        } finally { reader.releaseLock(); }
+      } else {
+        data = await res.json();
+      }
 
-      if (res.ok) {
+      if (res.ok && !data.error) {
         const aiMessage = { role: 'assistant', content: data.response }
-        setMessages(prev => [...prev, aiMessage])
+        if (!streamed) setMessages(prev => [...prev, aiMessage])
 
         // Set title from first prompt
         if (!conversationTitle) {

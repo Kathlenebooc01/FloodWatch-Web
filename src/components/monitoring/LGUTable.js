@@ -16,6 +16,7 @@ import SideModal from "@/components/Modal/SideModal"
 import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
 import TablePagination from "@/components/table/TablePagination"
 import { supabase } from "@/supabase/util/supabase"
+import { buildReportHierarchy, fetchAllIncidentReports } from "@/lib/situational-report-hierarchy.mjs"
 import {
   ChevronRight,
   ChevronDown,
@@ -347,6 +348,8 @@ export default function LGUTable() {
 
   // Expand/Collapse state for Municipality Groups
   const [expandedMunicipalities, setExpandedMunicipalities] = useState({})
+  const [expandedReports, setExpandedReports] = useState({})
+  const [reportFetchError, setReportFetchError] = useState(null)
   const [expandedDistressMunis, setExpandedDistressMunis] = useState({})
 
   // Pagination State
@@ -369,11 +372,7 @@ export default function LGUTable() {
     const fetchAllData = async () => {
       try {
         const [repRes, disRes] = await Promise.all([
-          supabase
-            .from("incident_report")
-            .select("*, profiles:user_id(id, full_name, role, organization_name, mobile_number, profile_picture, email), municipality_or_city:municipality_id(name)")
-            .order("created_at", { ascending: false })
-            .limit(200),
+          fetchAllIncidentReports(supabase),
           supabase
             .from("distress_signals")
             .select("*, profiles:profile_id(id, full_name, organization_name, role, mobile_number, email), municipality_or_city:municipality_id(name)")
@@ -383,28 +382,17 @@ export default function LGUTable() {
 
         if (!isMounted) return;
 
-        const allIncidentRows = repRes.data || [];
+        setReportFetchError(null);
+        const allIncidentRows = repRes;
         const rawDistressRows = disRes.data || [];
 
         // 1. Separate Situational Reports (Report Table) vs Escalation Reports (Distress Signals)
-        const situationalRows = allIncidentRows.filter(isSituationalReport);
+        const situationalRows = allIncidentRows.filter(rep => isSituationalReport(rep) || rep.parent_report_id);
         const escalationRows = allIncidentRows.filter(isEscalationReport);
 
         // Process Situational Reports
         const processedReports = situationalRows.map((rep) => {
-          let muniName = rep.municipality_or_city?.name;
-          if (!muniName) {
-            if (rep.description && /lapu-lapu/i.test(rep.description)) muniName = "Lapu-Lapu City";
-            else if (rep.description && /cebu city/i.test(rep.description)) muniName = "Cebu City";
-            else if (rep.description && /mandaue/i.test(rep.description)) muniName = "Mandaue City";
-            else muniName = "Lapu-Lapu City";
-          } else {
-            muniName = muniName
-              .toLowerCase()
-              .split(" ")
-              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-              .join(" ");
-          }
+          const muniName = rep.municipality_or_city?.name || "Unknown municipality";
 
           return {
             ...rep,
@@ -477,7 +465,8 @@ export default function LGUTable() {
         setExpandedMunicipalities((prev) => {
           const next = { ...prev };
           processedReports.forEach((r) => {
-            if (next[r.municipality_name] === undefined) next[r.municipality_name] = true;
+            const key = r.municipality_id || "unknown";
+            if (next[key] === undefined) next[key] = true;
           });
           return next;
         });
@@ -504,6 +493,7 @@ export default function LGUTable() {
           });
         }
       } catch (err) {
+        if (isMounted) setReportFetchError("Unable to refresh reports. Please try again shortly.");
         console.error("🚨 Error in fetchAllData:", err);
       } finally {
         if (isMounted) {
@@ -543,28 +533,8 @@ export default function LGUTable() {
   }, []);
 
   // Group Situational Reports by Municipality for the Hierarchy View
-  const groupedReports = useMemo(() => {
-    const groups = {};
-    reports.forEach((rep) => {
-      const muni = rep.municipality_name || "Lapu-Lapu City";
-      if (!groups[muni]) {
-        groups[muni] = {
-          municipality_name: muni,
-          reports: [],
-          pendingCount: 0,
-          latestReport: rep
-        };
-      }
-      groups[muni].reports.push(rep);
-
-      const st = (rep.status || "").toLowerCase();
-      if (st.includes("pending") || st.includes("ready") || st.includes("review") || st.includes("submitted")) {
-        groups[muni].pendingCount += 1;
-      }
-    });
-
-    return Object.values(groups);
-  }, [reports]);
+  const reportHierarchy = useMemo(() => buildReportHierarchy(reports), [reports]);
+  const groupedReports = reportHierarchy.groups;
 
   // Group Distress Signals / Escalations by Municipality for Red Hierarchical Table
   const groupedDistressSignals = useMemo(() => {
@@ -672,7 +642,7 @@ export default function LGUTable() {
     const raw = status || "Pending";
     const s = raw.toLowerCase();
 
-    if (s === "accepted" || s.includes("verified") || s.includes("approved")) {
+    if (s === "accepted" || s === "verified" || s === "approved") {
       return (
         <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full text-xs font-bold tracking-wide inline-flex items-center gap-1.5 shadow-2xs">
           <BadgeCheck className="size-3.5" />
@@ -751,7 +721,7 @@ export default function LGUTable() {
             await supabase.from("notifications").insert({
               user_id: selectedReport.user_id,
               title: "Report Verified",
-              message: `Your situational report for ${selectedReport.clean_title || "incident"} has been verified and accepted by the LGU.`,
+              message: `Your situational report for ${selectedReport.clean_title || "incident"} has been verified and accepted by PDRRMO/Admin.`,
               type: "Updates",
               target_role: "lgu"
             });
@@ -1012,6 +982,14 @@ export default function LGUTable() {
                   </tr>
                 </TableHead>
                 <tbody>
+                  {reportFetchError && (
+                    <TableRow><TableDataMuted colSpan={7} role="alert">{reportFetchError}</TableDataMuted></TableRow>
+                  )}
+                  {reportHierarchy.unresolved.length > 0 && (
+                    <TableRow><TableDataMuted colSpan={7} role="alert">
+                      {reportHierarchy.unresolved.length} linked update(s) could not be loaded with their main report.
+                    </TableDataMuted></TableRow>
+                  )}
                   {isLoadingReports ? (
                     Array.from({ length: 4 }).map((_, i) => (
                       <TableRow key={`skeleton-report-${i}`}>
@@ -1026,14 +1004,14 @@ export default function LGUTable() {
                     ))
                   ) : groupedReports.length > 0 ? (
                     paginatedReports.map((group) => {
-                      const isExpanded = expandedMunicipalities[group.municipality_name] ?? true;
+                      const isExpanded = expandedMunicipalities[group.municipality_id] ?? true;
                       const latest = group.latestReport;
 
                       return (
-                        <React.Fragment key={`group-${group.municipality_name}`}>
+                        <React.Fragment key={`group-${group.municipality_id}`}>
                           {/* Municipality Header Row */}
                           <TableRow
-                            onClick={() => toggleMunicipality(group.municipality_name)}
+                            onClick={() => toggleMunicipality(group.municipality_id)}
                             className="bg-gray-50/80 hover:bg-gray-100/80 cursor-pointer transition-colors border-b border-gray-200"
                           >
                             <TableData className="font-extrabold text-gray-900 py-3.5">
@@ -1087,19 +1065,45 @@ export default function LGUTable() {
                           {isExpanded &&
                             group.reports.map((item, repIndex) => {
                               const reportTitle = item.clean_title || "Situational Report";
+                              const reportExpanded = expandedReports[item.report_id] ?? true;
 
                               return (
+                                <React.Fragment key={item.report_id}>
                                 <TableRow
                                   key={item.report_id || `rep-${group.municipality_name}-${repIndex}`}
-                                  onClick={() => handleOpenReportModal(item)}
+                                  onClick={() => setExpandedReports(prev => ({ ...prev, [item.report_id]: !reportExpanded }))}
                                   className="hover:bg-blue-50/50 cursor-pointer transition-colors border-b border-gray-100 bg-white"
                                 >
                                   <TableData className="pl-9 py-3">
                                     <div className="flex items-center gap-2 group">
-                                      <ChevronRight className="size-4 text-gray-400 group-hover:text-primary transition-colors shrink-0" />
+                                      <button
+                                        type="button"
+                                        aria-label={`${reportExpanded ? "Collapse" : "Expand"} ${reportTitle} updates`}
+                                        aria-expanded={reportExpanded}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setExpandedReports(prev => ({ ...prev, [item.report_id]: !reportExpanded }));
+                                        }}
+                                        className="p-1 text-gray-400 hover:text-primary shrink-0"
+                                      >
+                                        {reportExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                                      </button>
                                       <span className="font-bold text-gray-800 group-hover:text-primary transition-colors text-sm">
                                         {reportTitle}
                                       </span>
+                                      <span className="text-xs text-gray-500 whitespace-nowrap">{item.updates.length} {item.updates.length === 1 ? "update" : "updates"}</span>
+                                      <button
+                                        type="button"
+                                        aria-label={`View ${reportTitle} details`}
+                                        title="View report details"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleOpenReportModal(item);
+                                        }}
+                                        className="p-1 text-gray-400 hover:text-primary shrink-0"
+                                      >
+                                        <Eye className="size-4" />
+                                      </button>
                                     </div>
                                   </TableData>
 
@@ -1125,8 +1129,33 @@ export default function LGUTable() {
 
                                   <TableData>
                                     {getStatusBadge(item.status)}
+                                    {item.updates.length > 0 && (
+                                      <div className="text-[11px] text-gray-500 mt-1">Latest: {item.latestReport.status || "Pending"}</div>
+                                    )}
                                   </TableData>
                                 </TableRow>
+                                {reportExpanded && item.updates.map((update, updateIndex) => (
+                                  <TableRow key={update.report_id} onClick={() => handleOpenReportModal(update)}
+                                    className="hover:bg-blue-50/50 cursor-pointer transition-colors border-b border-gray-100 bg-white">
+                                    <TableData className="pl-16 py-3">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-gray-400" aria-hidden="true">{updateIndex === item.updates.length - 1 ? "└──" : "├──"}</span>
+                                        <span className="font-bold text-gray-800 text-sm">Update {updateIndex + 1}</span>
+                                        <span className="text-xs text-gray-500">{update.clean_title}</span>
+                                      </div>
+                                    </TableData>
+                                    <TableDataMuted className="text-xs font-mono font-medium">{update.formatted_id}</TableDataMuted>
+                                    <TableData>{renderIncidentTypeBadge(update.hazard_type, update.report_type)}</TableData>
+                                    <TableDataMuted className="text-xs truncate max-w-[180px]">{update.location_name}</TableDataMuted>
+                                    <TableDataMuted className="text-xs whitespace-nowrap">{formatRelativeTime(update.created_at)}</TableDataMuted>
+                                    <TableData className="text-xs">{renderPriority(update.priority_level)}</TableData>
+                                    <TableData>{getStatusBadge(update.status)}</TableData>
+                                  </TableRow>
+                                ))}
+                                {reportExpanded && item.updates.length === 0 && (
+                                  <TableRow><TableDataMuted colSpan={7} className="pl-16 py-3">No linked updates yet.</TableDataMuted></TableRow>
+                                )}
+                                </React.Fragment>
                               );
                             })}
                         </React.Fragment>

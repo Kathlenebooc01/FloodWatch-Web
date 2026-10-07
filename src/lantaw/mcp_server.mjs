@@ -5,16 +5,19 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
+import { registerChatTools, getChatContext } from "../lib/lantaw/chat-tools.mjs";
+import { generateChatAnswer } from "../lib/lantaw/chat-provider.mjs";
 
 // ── 1. Load Environment Variables from .env.local ─────────────────────────────
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "../../");
-const envLocalPath = path.join(projectRoot, ".env.local");
+const envPaths = [".env", ".env.local"].map(name => path.join(projectRoot, name));
 
 const env = {};
-if (fs.existsSync(envLocalPath)) {
-  const envContent = fs.readFileSync(envLocalPath, "utf-8");
+for (const envPath of envPaths) {
+  if (!fs.existsSync(envPath)) continue;
+  const envContent = fs.readFileSync(envPath, "utf-8");
   for (const line of envContent.split("\n")) {
     const trimmed = line.trim();
     if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
@@ -33,39 +36,20 @@ const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI || env.GEMINI_LANTAW_AI;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.NEXT_SERVICE_ROLE_KEY || env.NEXT_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: (url, options = {}) => fetch(url, { ...options, signal: AbortSignal.any([options.signal, AbortSignal.timeout(6000)].filter(Boolean)) }) } }) : null;
 
 const DEFAULT_MODEL = process.env.GEMINI_LANTAW_MODEL || env.GEMINI_LANTAW_MODEL || "gemini-3.1-flash-lite";
 
 // ── 2. Helper: Call Gemini Fast Model ──────────────────────────────────────────
 async function callGemini(prompt, model = DEFAULT_MODEL) {
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_LANTAW_AI is not configured in .env.local.");
-  }
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: "application/json",
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Gemini API error (${response.status}): ${errText}`);
-  }
-
-  const data = await response.json();
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-  return rawText;
+  const text = await generateChatAnswer(prompt, { model, apiKey: GEMINI_API_KEY,
+    backupKey: process.env.GEMINI_LANTAW_BACKUP_AI || env.GEMINI_LANTAW_BACKUP_AI,
+    backupModel: process.env.GEMINI_LANTAW_BACKUP_MODEL || env.GEMINI_LANTAW_BACKUP_MODEL,
+    json: true, maxOutputTokens: 4096 });
+  return JSON.stringify(JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')));
 }
 
-// ── 3. Initialize FastMCP Server ─────────────────────────────────────────────
+export function createLantawMcpServer() {
 const server = new McpServer({
   name: "floodwatch-lantaw-mcp",
   version: "1.0.0",
@@ -173,7 +157,8 @@ Return strictly JSON:
       };
     } catch (err) {
       return {
-        content: [{ type: "text", text: JSON.stringify({ is_duplicate: false, error: err.message }) }],
+        content: [{ type: "text", text: JSON.stringify({ is_duplicate: null, error: err.message }) }],
+        isError: true,
       };
     }
   }
@@ -265,26 +250,8 @@ server.tool(
   },
   async ({ scope }) => {
     try {
-      const prompt = `
-You are Lantaw AI, Chief Disaster Risk Intelligence for FloodWatch.
-Analyze current disaster resource requests for ${scope || "Cebu Province"}, evaluate weather telemetry (monsoon rainfall, coastal flooding), and return a prioritized queue with urgency scores (1-100), priority levels (CRITICAL, HIGH, MEDIUM), weather impact factors, and recommended allocations.
-
-Return strictly JSON:
-{
-  "executive_summary": "Summary of current risk and weather drivers",
-  "prioritized_queue": [
-    {
-      "rank": 1,
-      "municipality": "Bogo City",
-      "requested_items": "3x Inflatable Rescue Boats, 50x Life Vests",
-      "priority_level": "CRITICAL",
-      "urgency_score": 96,
-      "weather_impact_factor": "Intense 32mm/h rainfall band approaching low-lying coastal corridor",
-      "recommended_action": "Immediate dispatch of regional rescue assets"
-    }
-  ]
-}
-`;
+      const context = await getChatContext(supabase, 'requests');
+      const prompt = 'Prioritize only these actual FloodWatch requests. No weather readings are supplied: mark weather impact unknown. Never invent requests, supplies, rainfall, hazard scores or locations. Return JSON with executive_summary and prioritized_queue; each entry must have rank, municipality, requested_items, priority_level, urgency_score and recommended_action. Scope: ' + (scope || 'Cebu Province') + '\nData: ' + JSON.stringify(context);
       const resultText = await callGemini(prompt);
       return {
         content: [{ type: "text", text: resultText }],
@@ -299,13 +266,18 @@ Return strictly JSON:
 );
 
 // ── 4. Start Server on Stdio Transport ─────────────────────────────────────────
-async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("Lantaw MCP Server is running via stdio transport.");
+  registerChatTools(server, { db: supabase, weatherKey: process.env.OPENWEATHER_API_KEY || process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY || env.OPENWEATHER_API_KEY || env.NEXT_PUBLIC_OPENWEATHER_API_KEY });
+  return server;
 }
 
-main().catch((err) => {
-  console.error("Fatal error starting Lantaw MCP Server:", err);
-  process.exit(1);
-});
+async function main() {
+  const server = createLantawMcpServer();
+  await server.connect(new StdioServerTransport());
+  console.error('Lantaw MCP Server is running via stdio transport.');
+}
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  main().catch(error => {
+    console.error('Unable to start Lantaw MCP Server:', error.message);
+    process.exitCode = 1;
+  });
+}

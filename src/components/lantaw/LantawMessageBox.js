@@ -2,7 +2,6 @@
 import { memo, useRef, useMemo } from "react"
 import { Origami } from "lucide-react"
 import ReactMarkdown from "react-markdown"
-import useTypewriter from "./TypewriterText"
 import useOnScreen from "@/hooks/useOnScreen"
 import LantawVisualization from "./LantawVisualization"
 import LantawDocumentCard from "./LantawDocumentCard"
@@ -113,9 +112,7 @@ function LantawMessageBox({ children, isNew = false }) {
                 <LantawDocumentCard data={parsedData.data} />
             ) : parsedData?.type === 'spreadsheet' ? (
                 <LantawSheetCard data={parsedData.data} />
-            ) : isNew ? (
-                <TypewriterMarkdown text={children} />
-            ) : isVisible ? (
+            ) : isNew || isVisible ? (
                 <ReactMarkdown>{children}</ReactMarkdown>
             ) : (
                 <PlainPreview text={children} />
@@ -128,11 +125,6 @@ function LantawMessageBox({ children, isNew = false }) {
 
 // Memoize to prevent re-renders when parent state changes but this message hasn't
 export default memo(LantawMessageBox)
-
-function TypewriterMarkdown({ text }) {
-  const { displayedText } = useTypewriter(text, 15)
-  return <ReactMarkdown>{displayedText}</ReactMarkdown>
-}
 
 // Lightweight plain-text preview for off-screen messages (no markdown parsing)
 function PlainPreview({ text }) {

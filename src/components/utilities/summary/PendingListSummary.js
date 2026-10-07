@@ -7,38 +7,35 @@ import CardBasedText from "@/components/cards/CardBasedText"
 import { supabase } from "@/supabase/util/supabase"
 import { format } from "date-fns"
 import Link from "next/link"
+import { statusVariants, requestStatusLabel } from "@/lib/domain-values.mjs"
+import { fetchHighUrgencyRequests } from "@/lib/emergency-requests.mjs"
 
 export default function PendingListSummary() {
   const [topPending, setTopPending] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const fetchTopPending = async () => {
-    setIsLoading(true)
-    const { data, error } = await supabase
-      .from('resource_requests')
-      .select('*, profiles:requested_by(full_name), municipality_or_city:municipality_id(name)')
-      .eq('status', 'Pending')
-      .eq('request_reason', 'HIGH Urgency Request')
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    if (!error && data && data.length > 0) {
-      setTopPending(data[0])
-    } else {
-      setTopPending(null)
-    }
-    setIsLoading(false)
+  const fetchTopPending = async (showLoading = true) => {
+    if (showLoading) setIsLoading(true)
+    try {
+      const requests = await fetchHighUrgencyRequests(supabase, AbortSignal.timeout(10000))
+      setTopPending(requests.find(request => statusVariants(['Pending', 'Pending_Dispatch']).includes(request.status)) || null)
+    } catch (error) {
+      console.error('Unable to sync pending High urgency requests:', error)
+    } finally { setIsLoading(false) }
   }
 
   useEffect(() => {
-    fetchTopPending()
+    const initialFetch = setTimeout(() => fetchTopPending(), 0)
+    const syncTimer = setInterval(() => { if (document.visibilityState === 'visible') fetchTopPending(false) }, 5000)
 
     const channel = supabase
       .channel('pending-list-summary-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_requests' }, fetchTopPending)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_requests' }, () => fetchTopPending(false))
       .subscribe()
 
     return () => {
+      clearTimeout(initialFetch)
+      clearInterval(syncTimer)
       supabase.removeChannel(channel)
     }
   }, [])
@@ -70,7 +67,7 @@ export default function PendingListSummary() {
               Request #{topPending.request_id?.substring(0, 8)}
             </span>
             <span className="px-2 py-0.5 bg-amber-100 text-amber-700 font-extrabold text-[10px] uppercase rounded-full border border-amber-200">
-              Pending
+              {requestStatusLabel(topPending.status)}
             </span>
           </div>
 

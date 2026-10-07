@@ -1,4 +1,5 @@
 import { Package, Truck, CheckCircle2, RotateCcw } from "lucide-react"
+import { normalizeRequestStatus, requestStatusLabel } from "@/lib/domain-values.mjs"
 
 export default function StatusBar({ currentStatus = 'Pending_Dispatch' }) {
   const stages = [
@@ -10,11 +11,14 @@ export default function StatusBar({ currentStatus = 'Pending_Dispatch' }) {
 
   // Find the index of the current status to determine progress
   // If not found, default to 0 to show the first step
-  let currentIndex = stages.findIndex(s => s.id === currentStatus)
-  if (currentIndex === -1) currentIndex = 0
+  const normalized = normalizeRequestStatus(currentStatus)
+  let currentIndex = stages.findIndex(s => s.id === normalized)
+  if (['Partially_Allocated', 'Fully_Allocated'].includes(normalized)) currentIndex = 0
+  if (normalized === 'Returning') currentIndex = 2
 
   return (
     <div className="w-full py-6">
+      {currentIndex === -1 && <p className="text-center text-xs text-gray-500 mb-4">{requestStatusLabel(currentStatus)}</p>}
       <div className="flex items-center justify-between relative px-4">
         {/* Background track line */}
         <div className="absolute left-8 right-8 top-5 -translate-y-1/2 h-1 bg-gray-200 rounded-full z-0"></div>
@@ -22,7 +26,7 @@ export default function StatusBar({ currentStatus = 'Pending_Dispatch' }) {
         {/* Active progress line */}
         <div 
           className="absolute left-8 top-5 -translate-y-1/2 h-1 bg-primary rounded-full z-0 transition-all duration-500 ease-in-out"
-          style={{ width: `calc(${(currentIndex / (stages.length - 1)) * 100}% - ${currentIndex === 0 ? '0px' : '4rem'})`, minWidth: currentIndex > 0 ? '1rem' : '0' }}
+          style={{ width: currentIndex <= 0 ? '0' : `calc(${(currentIndex / (stages.length - 1)) * 100}% - 4rem)`, minWidth: currentIndex > 0 ? '1rem' : '0' }}
         ></div>
 
         {/* Stage Nodes */}

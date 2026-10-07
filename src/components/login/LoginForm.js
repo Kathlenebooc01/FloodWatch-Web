@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/supabase/util/supabase";
+import { normalizeRole, ROLES } from "@/lib/domain-values.mjs";
 import {Mail, Eye, EyeOff} from 'lucide-react';
 import CardSubHeader from "../cards/CardSubHeader"
 import CardBasedText from "../cards/CardBasedText"
@@ -115,9 +116,9 @@ export default function LoginForm() {
         throw profileError;
       }
 
-      if (activeAdmin === 'national' && profile.role === 'national_admin') {
+      if (activeAdmin === 'national' && normalizeRole(profile.role) === ROLES.NATIONAL_ADMIN) {
         router.push('/national-admin/dashboard');
-      } else if (activeAdmin === 'provincial' && profile.role === 'provincial_admin') {
+      } else if (activeAdmin === 'provincial' && normalizeRole(profile.role) === ROLES.PROVINCIAL_ADMIN) {
         router.push('/provincial-admin/dashboard'); 
       } else {
         await supabase.auth.signOut();

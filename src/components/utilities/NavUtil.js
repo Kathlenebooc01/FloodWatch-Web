@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState, useEffect, useCallback } from "react"
 import { supabase } from "@/supabase/util/supabase"
+import { statusVariants } from "@/lib/domain-values.mjs"
 import { getStoredViewTime, setStoredViewTime, NOTIF_KEYS } from "@/lib/notifications/unreadTracker"
 import ToogleButton from "../button/ToogleButton"
 import ToogleButtonLayout from "../button/ToogleButtonLayout"
@@ -23,7 +24,6 @@ export default function NavUtil() {
   useEffect(() => {
     if (isViewingRequest) {
       setStoredViewTime(NOTIF_KEYS.REQUEST)
-      setPendingRequestsCount(0)
     }
   }, [isViewingRequest])
 
@@ -33,7 +33,7 @@ export default function NavUtil() {
       let query = supabase
         .from('resource_requests')
         .select('*', { count: 'exact', head: true })
-        .in('status', ['Pending', 'pending'])
+        .in('status', statusVariants(['Pending']))
       
       if (lastRequestView) {
         query = query.gt('created_at', lastRequestView)
@@ -50,7 +50,7 @@ export default function NavUtil() {
   }, [isViewingRequest])
 
   useEffect(() => {
-    fetchPendingRequests()
+    const initialFetch = setTimeout(() => fetchPendingRequests(), 0)
 
     const handleViewed = () => fetchPendingRequests()
     window.addEventListener("fw_notification_viewed", handleViewed)
@@ -64,9 +64,10 @@ export default function NavUtil() {
 
     const pollInterval = setInterval(() => {
       fetchPendingRequests()
-    }, 5000)
+    }, 30000)
 
     return () => {
+      clearTimeout(initialFetch)
       window.removeEventListener("fw_notification_viewed", handleViewed)
       supabase.removeChannel(channel)
       clearInterval(pollInterval)

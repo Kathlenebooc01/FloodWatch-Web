@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import GlassCard from "../cards/GlassCard"
 import RouteHeader from "./RouteHeader"
 import CardBasedText from "../cards/CardBasedText"
@@ -7,26 +7,28 @@ import {User,Bell} from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { supabase } from "@/supabase/util/supabase"
+import { ROLES } from "@/lib/domain-values.mjs"
 
 export default function NavHeader() {
   const pathname = usePathname()
   const basePath = pathname?.startsWith('/provincial-admin') ? '/provincial-admin' : '/national-admin'
+  const role = basePath === '/provincial-admin' ? ROLES.PROVINCIAL_ADMIN : ROLES.NATIONAL_ADMIN
   const [hasUnreadNotifs, setHasUnreadNotifs] = useState(false)
 
-  const fetchUnreadNotifsStatus = async () => {
+  const fetchUnreadNotifsStatus = useCallback(async () => {
     const { count, error } = await supabase
       .from('notifications')
       .select('*', { count: 'exact', head: true })
-      .in('target_role', ['all', 'national_admin'])
+      .in('target_role', ['all', role])
       .eq('is_read', false)
 
     if (!error) {
       setHasUnreadNotifs(count > 0)
     }
-  }
+  }, [role])
 
   useEffect(() => {
-    fetchUnreadNotifsStatus()
+    const initialFetch = setTimeout(() => fetchUnreadNotifsStatus(), 0)
 
     const notifChannel = supabase
       .channel('navheader_notifications')
@@ -36,9 +38,10 @@ export default function NavHeader() {
       .subscribe()
 
     return () => {
+      clearTimeout(initialFetch)
       supabase.removeChannel(notifChannel)
     }
-  }, [])
+  }, [fetchUnreadNotifsStatus])
 
   // On app open: query realtime OpenWeather telemetry for user location once per session
   useEffect(() => {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/supabase/util/supabase";
+import { normalizeRole } from "@/lib/domain-values.mjs";
 import { checkIpSecurity } from "@/vpnio/Detector";
 import BoatLoader from "@/components/loader/BoatLoader";
 import WaveLoader from "@/components/loader/WaveLoader";
@@ -13,6 +14,16 @@ export default function AuthGuard({ children, allowedRole }) {
 
   useEffect(() => {
     let intervalId;
+    let active = true;
+    let signedOut = false;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        signedOut = true;
+        clearInterval(intervalId);
+        setAuthorized(false);
+        router.replace('/login');
+      }
+    });
 
     const checkAuth = async () => {
       try {
@@ -34,23 +45,27 @@ export default function AuthGuard({ children, allowedRole }) {
           return;
         }
 
-        if (profile.role === allowedRole) {
+        if (!active || signedOut) return;
+        if (normalizeRole(profile.role) && normalizeRole(profile.role) === normalizeRole(allowedRole)) {
           setAuthorized(true);
+          // Render the authorized dashboard before the background IP check finishes.
+          setLoading(false);
 
           // Fetch initial IP
           let lastIp = null;
           try {
-            const ipRes = await fetch('https://api.ipify.org?format=json');
+            const ipRes = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(5000) });
             const ipData = await ipRes.json();
             lastIp = ipData.ip;
           } catch (err) {}
+          if (!active || signedOut) return;
 
           // Realtime VPN Polling every 10 seconds
           intervalId = setInterval(async () => {
             try {
               let currentIp = null;
               try {
-                const ipRes = await fetch('https://api.ipify.org?format=json');
+                const ipRes = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(5000) });
                 const ipData = await ipRes.json();
                 currentIp = ipData.ip;
               } catch (err) {}
@@ -91,13 +106,15 @@ export default function AuthGuard({ children, allowedRole }) {
         console.error("AuthGuard error:", err);
         router.push('/login');
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     checkAuth();
 
     return () => {
+      active = false;
+      subscription.unsubscribe();
       if (intervalId) clearInterval(intervalId);
     };
   }, [router, allowedRole]);

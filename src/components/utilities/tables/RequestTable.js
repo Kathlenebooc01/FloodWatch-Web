@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/supabase/util/supabase"
 import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
 import TablePagination from "@/components/table/TablePagination"
+import { normalizeRequestStatus, requestStatusLabel } from "@/lib/domain-values.mjs"
 
 const statusStyles = {
   Pending: 'summary-data-icon-yellow',
@@ -54,7 +55,7 @@ export default function RequestTable() {
   }
 
   useEffect(() => {
-    fetchRequests()
+    const initialFetch = setTimeout(() => fetchRequests(), 0)
 
     // Real-time subscription — listen to BOTH tables
     // resource_requests changes (status updates from web)
@@ -70,6 +71,7 @@ export default function RequestTable() {
       .subscribe()
 
     return () => {
+      clearTimeout(initialFetch)
       supabase.removeChannel(channel)
     }
   }, [])
@@ -106,8 +108,8 @@ export default function RequestTable() {
                     <TableData>{item.profiles?.full_name || 'Unknown'}</TableData>
                     <TableDataMuted>{item.municipality_or_city?.name || 'N/A'}</TableDataMuted>
                     <TableData>
-                      <span className={`${statusStyles[item.status] || ''} px-3 py-1 text-xs font-semibold capitalize`}>
-                        {(item.status || '').replace(/_/g, ' ')}
+                      <span className={`${statusStyles[normalizeRequestStatus(item.status)] || ''} px-3 py-1 text-xs font-semibold capitalize`}>
+                        {requestStatusLabel(item.status)}
                       </span>
                     </TableData>
                     <TableDataMuted className='truncate max-w-[200px]'>
