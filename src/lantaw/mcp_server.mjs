@@ -1,50 +1,23 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
 import { registerChatTools, getChatContext } from "../lib/lantaw/chat-tools.mjs";
 import { generateChatAnswer } from "../lib/lantaw/chat-provider.mjs";
 
 // ── 1. Load Environment Variables from .env.local ─────────────────────────────
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const projectRoot = path.resolve(__dirname, "../../");
-const envPaths = [".env", ".env.local"].map(name => path.join(projectRoot, name));
-
-const env = {};
-for (const envPath of envPaths) {
-  if (!fs.existsSync(envPath)) continue;
-  const envContent = fs.readFileSync(envPath, "utf-8");
-  for (const line of envContent.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
-      const idx = trimmed.indexOf("=");
-      const key = trimmed.slice(0, idx).trim();
-      let val = trimmed.slice(idx + 1).trim();
-      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-        val = val.slice(1, -1);
-      }
-      env[key] = val;
-    }
-  }
-}
-
-const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI || env.GEMINI_LANTAW_AI;
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.NEXT_SERVICE_ROLE_KEY || env.NEXT_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = process.env.NEXT_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: (url, options = {}) => fetch(url, { ...options, signal: AbortSignal.any([options.signal, AbortSignal.timeout(6000)].filter(Boolean)) }) } }) : null;
 
-const DEFAULT_MODEL = process.env.GEMINI_LANTAW_MODEL || env.GEMINI_LANTAW_MODEL || "gemini-3.1-flash-lite";
+const DEFAULT_MODEL = process.env.GEMINI_LANTAW_MODEL || "gemini-3.1-flash-lite";
 
 // ── 2. Helper: Call Gemini Fast Model ──────────────────────────────────────────
 async function callGemini(prompt, model = DEFAULT_MODEL) {
   const text = await generateChatAnswer(prompt, { model, apiKey: GEMINI_API_KEY,
-    backupKey: process.env.GEMINI_LANTAW_BACKUP_AI || env.GEMINI_LANTAW_BACKUP_AI,
-    backupModel: process.env.GEMINI_LANTAW_BACKUP_MODEL || env.GEMINI_LANTAW_BACKUP_MODEL,
+    backupKey: process.env.GEMINI_LANTAW_BACKUP_AI,
+    backupModel: process.env.GEMINI_LANTAW_BACKUP_MODEL,
     json: true, maxOutputTokens: 4096 });
   return JSON.stringify(JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')));
 }
@@ -266,18 +239,6 @@ server.tool(
 );
 
 // ── 4. Start Server on Stdio Transport ─────────────────────────────────────────
-  registerChatTools(server, { db: supabase, weatherKey: process.env.OPENWEATHER_API_KEY || process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY || env.OPENWEATHER_API_KEY || env.NEXT_PUBLIC_OPENWEATHER_API_KEY });
+  registerChatTools(server, { db: supabase, weatherKey: process.env.OPENWEATHER_API_KEY || process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY });
   return server;
-}
-
-async function main() {
-  const server = createLantawMcpServer();
-  await server.connect(new StdioServerTransport());
-  console.error('Lantaw MCP Server is running via stdio transport.');
-}
-if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
-  main().catch(error => {
-    console.error('Unable to start Lantaw MCP Server:', error.message);
-    process.exitCode = 1;
-  });
 }

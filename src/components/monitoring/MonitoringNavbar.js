@@ -2,9 +2,10 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { supabase } from "@/supabase/util/supabase"
 import { getStoredViewTime, setStoredViewTime, NOTIF_KEYS } from "@/lib/notifications/unreadTracker"
+import { fetchProvincialMonitoringUnreadCounts } from "@/lib/notifications/provincialMonitoringUnread.mjs"
 
 const navLinks = [
   { name: "Weather", href: "/provincial-admin/monitoring", exact: true },
@@ -15,18 +16,11 @@ const navLinks = [
   { name: "LGU", href: "/provincial-admin/monitoring/lgu-monitoring", badgeKey: "lgu" }
 ]
 
-const ACTIVE_REPORT_STATUSES = [
-  "Pending_AI", "pending_ai",
-  "Ready_For_LGU", "Ready_for_LGU", "ready_for_lgu",
-  "Pending", "pending",
-  "Submitted", "submitted",
-  "Under_Review", "under_review"
-]
-
 export default function MonitoringNavbar() {
   const pathname = usePathname()
   const [reportCount, setReportCount] = useState(0)
   const [lguCount, setLguCount] = useState(0)
+  const latestFetch = useRef(0)
 
   const isViewingReport = pathname?.startsWith("/provincial-admin/monitoring/report-map")
   const isViewingLgu = pathname?.startsWith("/provincial-admin/monitoring/lgu-monitoring")
@@ -35,73 +29,33 @@ export default function MonitoringNavbar() {
   useEffect(() => {
     if (isViewingReport) {
       setStoredViewTime(NOTIF_KEYS.REPORT)
-      setReportCount(0)
     }
   }, [isViewingReport])
 
   useEffect(() => {
     if (isViewingLgu) {
       setStoredViewTime(NOTIF_KEYS.LGU)
-      setLguCount(0)
     }
   }, [isViewingLgu])
 
   const fetchCounts = useCallback(async () => {
+    const fetchId = ++latestFetch.current
     try {
-      const lastReportView = getStoredViewTime(NOTIF_KEYS.REPORT)
-      const lastLguView = getStoredViewTime(NOTIF_KEYS.LGU)
-
-      // 1. Report tab badge — citizen reports only
-      let repQuery = supabase
-        .from("incident_report")
-        .select("report_id, profiles!user_id!inner(role)", { count: "exact", head: true })
-        .eq("profiles.role", "citizen")
-        .in("status", ACTIVE_REPORT_STATUSES)
-
-      if (lastReportView) {
-        repQuery = repQuery.gt("created_at", lastReportView)
-      }
-
-      // 2. LGU tab badge — active situational/incident reports + distress signals
-      let lguRepQuery = supabase
-        .from("incident_report")
-        .select("report_id", { count: "exact", head: true })
-        .in("status", ACTIVE_REPORT_STATUSES)
-
-      if (lastLguView) {
-        lguRepQuery = lguRepQuery.gt("created_at", lastLguView)
-      }
-
-      let disQuery = supabase
-        .from("distress_signals")
-        .select("distress_id", { count: "exact", head: true })
-        .in("status", ["Pending", "pending", "PENDING"])
-
-      if (lastLguView) {
-        disQuery = disQuery.gt("created_at", lastLguView)
-      }
-
-      const [repRes, lguRepRes, disRes] = await Promise.all([
-        repQuery,
-        lguRepQuery,
-        disQuery
-      ])
-
-      if (!isViewingReport && repRes.count !== null) {
-        setReportCount(repRes.count)
-      }
-
-      if (!isViewingLgu) {
-        const totalLguUnread = (lguRepRes.count || 0) + (disRes.count || 0)
-        setLguCount(totalLguUnread)
-      }
+      const counts = await fetchProvincialMonitoringUnreadCounts(
+        supabase,
+        getStoredViewTime(NOTIF_KEYS.REPORT),
+        getStoredViewTime(NOTIF_KEYS.LGU)
+      )
+      if (fetchId !== latestFetch.current) return
+      setReportCount(isViewingReport ? 0 : counts.reportCount)
+      setLguCount(isViewingLgu ? 0 : counts.lguCount)
     } catch (err) {
       console.error("Error fetching monitoring tab counts:", err)
     }
   }, [isViewingReport, isViewingLgu])
 
   useEffect(() => {
-    fetchCounts()
+    void Promise.resolve().then(fetchCounts)
 
     const handleViewed = () => fetchCounts()
     window.addEventListener("fw_notification_viewed", handleViewed)
@@ -160,15 +114,6 @@ export default function MonitoringNavbar() {
               key={link.name}
               href={link.href}
               prefetch={true}
-              onClick={() => {
-                if (link.badgeKey === "report") {
-                  setStoredViewTime(NOTIF_KEYS.REPORT)
-                  setReportCount(0)
-                } else if (link.badgeKey === "lgu") {
-                  setStoredViewTime(NOTIF_KEYS.LGU)
-                  setLguCount(0)
-                }
-              }}
               className={`relative shrink-0 px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all duration-200 text-center select-none flex-1 min-w-[72px] sm:min-w-[85px] flex items-center justify-center gap-1.5 ${
                 isActive
                   ? "bg-white text-primary shadow-xs font-bold"

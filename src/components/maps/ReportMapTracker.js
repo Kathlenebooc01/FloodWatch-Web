@@ -11,6 +11,7 @@ import CardHeader from '../cards/CardHeader';
 import CardSubHeader from '../cards/CardSubHeader';
 import CardBasedText from '../cards/CardBasedText';
 import { getCachedMonitoringData, setCachedMonitoringData } from '@/lib/cache/monitoringCache';
+import { formatIncidentDescription } from '@/lib/reports/formatIncidentDescription.mjs';
 
 // ─── Layer Style Definitions for GPU Canvas Rendering ──────────────────────
 const pinCircleLayer = {
@@ -283,6 +284,7 @@ export default function ReportMapTracker() {
   const handleMouseLeave = useCallback(() => setCursor('auto'), []);
 
   const activeStatus = selectedReport ? getStatusBadge(selectedReport.status) : null;
+  const incidentDescription = formatIncidentDescription(selectedReport?.description);
   const mappedCount = geojsonData.features.length;
 
   return (
@@ -394,7 +396,18 @@ export default function ReportMapTracker() {
                 <Row 
                   icon={<FileText className="size-4 text-primary" />} 
                   label="Incident Description" 
-                  value={selectedReport.description || "No specific description provided for this incident."} 
+                  value={incidentDescription.reportType ? (
+                    <span className="flex flex-col gap-2">
+                      <span className="font-semibold">{incidentDescription.reportType}</span>
+                      {incidentDescription.text && <span>{incidentDescription.text}</span>}
+                      {incidentDescription.fields.map(({ label, value }) => (
+                        <span key={label} className="flex flex-col gap-0.5">
+                          <span className="text-xs font-semibold text-gray-500">{label}</span>
+                          <span>{value}</span>
+                        </span>
+                      ))}
+                    </span>
+                  ) : (incidentDescription.text || "No specific description provided for this incident.")} 
                 />
                 <Row 
                   icon={<Calendar className="size-4 text-primary" />} 

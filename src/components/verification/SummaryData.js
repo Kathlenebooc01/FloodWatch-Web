@@ -16,26 +16,13 @@ export default function SummaryData() {
     if (showLoading) setIsLoading(true)
 
     try {
-      const [verifsRes, profilesRes] = await Promise.all([
-        supabase
-          .from('id_verification')
-          .select('status, ai_is_valid, ai_confidence_score, user_id'),
-        supabase
-          .from('profiles')
-          .select('id, is_verified')
-      ]);
+      const verifsRes = await supabase
+        .from('id_verification')
+        .select('status');
 
       const records = verifsRes.data || []
-      const profs = profilesRes.data || []
-      const profMap = new Map(profs.map(p => [p.id, p.is_verified]))
 
-      const isPassing = (r) => {
-        const s = r.status?.toLowerCase()
-        if (s === 'approved' || s === 'verified') return true
-        if (profMap.get(r.user_id) === true) return true
-        if (r.ai_is_valid && Number(r.ai_confidence_score ?? 0) >= 80) return true
-        return false
-      }
+      const isPassing = (r) => ['approved', 'verified'].includes(r.status?.toLowerCase())
 
       setCounts({
         total: records.length,

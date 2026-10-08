@@ -15,12 +15,47 @@ export async function createProfileAfterSignUp(profileData, invitationId) {
   )
 
   try {
+    let profileToSave = profileData
+    if (profileData.role === 'lgu_headmaster') {
+      if (!invitationId) throw new Error('LGU Headmaster invitation is required.')
+
+      const { data: invitation, error: invitationError } = await supabaseAdmin
+        .from('invitations')
+        .select('id, official_email, account_role, status, municipality_id')
+        .eq('id', invitationId)
+        .single()
+      if (invitationError || !invitation || invitation.status !== 'pending' ||
+          invitation.account_role !== 'lgu_headmaster' || !invitation.municipality_id) {
+        throw new Error('The LGU Headmaster invitation has no valid municipality assignment.')
+      }
+
+      const { data: authAccount, error: authAccountError } = await supabaseAdmin.auth.admin.getUserById(profileData.id)
+      if (authAccountError || !authAccount?.user ||
+          authAccount.user.email?.toLowerCase() !== invitation.official_email?.toLowerCase() ||
+          profileData.email?.toLowerCase() !== invitation.official_email?.toLowerCase()) {
+        throw new Error('The invitation does not belong to this account.')
+      }
+
+      profileToSave = { ...profileData, municipality_id: invitation.municipality_id }
+    }
+
     // 1. Insert profile into profiles table
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
-      .upsert(profileData)
+      .upsert(profileToSave)
 
     if (profileError) throw profileError
+
+    if (profileData.role === 'lgu_headmaster') {
+      const { data: savedProfile, error: readError } = await supabaseAdmin
+        .from('profiles')
+        .select('municipality_id')
+        .eq('id', profileData.id)
+        .single()
+      if (readError || savedProfile?.municipality_id !== profileToSave.municipality_id) {
+        throw new Error('The LGU municipality assignment could not be confirmed.')
+      }
+    }
 
     // 1.5 Auto-confirm email so they don't get blocked at login
     await supabaseAdmin.auth.admin.updateUserById(profileData.id, { email_confirm: true })
@@ -34,6 +69,7 @@ export async function createProfileAfterSignUp(profileData, invitationId) {
 
       if (inviteError) {
         console.error("Failed to update invitation status:", inviteError)
+        if (profileData.role === 'lgu_headmaster') throw inviteError
       }
     }
 

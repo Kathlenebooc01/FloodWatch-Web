@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { logAiError, logAiSuccess } from '@/lib/logs/apiLogger';
 
@@ -7,8 +7,7 @@ const SUPABASE_SERVICE_KEY = process.env.NEXT_SERVICE_ROLE_KEY || process.env.NE
 const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI;
 const GEMINI_BACKUP_KEY = process.env.GEMINI_LANTAW_BACKUP_AI || process.env.GEMINI_LANTAW_AI;
 const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-flash-latest';
-const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.8-flash';
-const TERTIARY_MODEL = 'gemini-flash-lite-latest';
+const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-flash-lite-latest';
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -17,11 +16,12 @@ async function callGemini(prompt, model, apiKey) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(7000),
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 1024,
+        maxOutputTokens: 256,
       }
     })
   });
@@ -38,7 +38,21 @@ async function callGemini(prompt, model, apiKey) {
 export async function POST(request) {
   const startTime = Date.now();
   try {
-    const { id_verification_id, user_id, userName, id_type, id_image_url, selfie_url } = await request.json();
+    const { id_verification_id } = await request.json();
+    const token = request.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
+    if (!token || !id_verification_id) return NextResponse.json({ error: 'Authentication and verification ID required' }, { status: 401 });
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !user) return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+    const [{ data: profile }, { data: submission, error: submissionError }] = await Promise.all([
+      supabaseAdmin.from('profiles').select('role').eq('id', user.id).single(),
+      supabaseAdmin.from('id_verification')
+        .select('user_id, id_type, id_image_url, selfie_url').eq('id_verification_id', id_verification_id).single(),
+    ]);
+    if (submissionError || !submission || (profile?.role !== 'national_admin' && submission.user_id !== user.id)) {
+      return NextResponse.json({ error: 'Verification request unavailable' }, { status: 403 });
+    }
+    const { user_id, id_type, id_image_url, selfie_url } = submission;
+    const userName = null;
 
     if (!GEMINI_API_KEY && !GEMINI_BACKUP_KEY) {
       const msg = "GEMINI_LANTAW_AI API key is missing in environment.";
@@ -68,18 +82,11 @@ Respond STRICTLY with a valid JSON object only:
 `;
 
     let rawResponse = "";
-    let finalStatus = 200;
-
     try {
       rawResponse = await callGemini(prompt, PRIMARY_MODEL, GEMINI_API_KEY);
     } catch (err1) {
       console.warn(`[Lantaw Verification] Primary model failed, trying backup:`, err1.message);
-      try {
-        rawResponse = await callGemini(prompt, BACKUP_MODEL, GEMINI_BACKUP_KEY || GEMINI_API_KEY);
-      } catch (err2) {
-        console.warn(`[Lantaw Verification] Backup model failed, trying tertiary:`, err2.message);
-        rawResponse = await callGemini(prompt, TERTIARY_MODEL, GEMINI_BACKUP_KEY || GEMINI_API_KEY);
-      }
+      rawResponse = await callGemini(prompt, BACKUP_MODEL, GEMINI_BACKUP_KEY || GEMINI_API_KEY);
     }
 
     let parsed = null;
@@ -92,12 +99,8 @@ Respond STRICTLY with a valid JSON object only:
       console.error("Failed to parse Gemini verification JSON:", e);
     }
 
-    if (!parsed) {
-      parsed = {
-        ai_is_valid: true,
-        ai_confidence_score: 92,
-        ai_insight: "Official ID credentials format validated successfully by Lantaw AI analysis."
-      };
+    if (!parsed || typeof parsed.ai_is_valid !== 'boolean' || !Number.isFinite(Number(parsed.ai_confidence_score)) || typeof parsed.ai_insight !== 'string') {
+      return NextResponse.json({ error: 'AI analysis did not return a valid assessment' }, { status: 502 });
     }
 
     const latency = Date.now() - startTime;
@@ -106,7 +109,7 @@ Respond STRICTLY with a valid JSON object only:
     // Attempt updating id_verification row with AI fields if present
     if (id_verification_id) {
       try {
-        await supabaseAdmin
+        const { error: dbError } = await supabaseAdmin
           .from('id_verification')
           .update({
             ai_is_valid: parsed.ai_is_valid,
@@ -114,17 +117,17 @@ Respond STRICTLY with a valid JSON object only:
             ai_insight: parsed.ai_insight
           })
           .eq('id_verification_id', id_verification_id);
+        if (dbError) throw dbError;
       } catch (dbErr) {
-        // Table may not have columns; non-fatal
-        console.debug("Note on id_verification update:", dbErr?.message);
+        return NextResponse.json({ error: 'Unable to save AI assessment' }, { status: 500 });
       }
     }
 
     // Automatically record Lantaw AI execution in api_activity_logs & api_monitoring!
-    await logAiSuccess(
+    after(() => logAiSuccess(
       "Lantaw Verification",
-      `Analyzed ID verification for ${targetUser} (${id_type || 'ID'}) - Result: ${parsed.ai_is_valid ? 'Valid Format' : 'Flagged'}, Confidence: ${parsed.ai_confidence_score}% | STATUS:${finalStatus} | LATENCY:${latency}ms`
-    );
+      `Analyzed ID verification for ${targetUser} (${id_type || 'ID'}) - Result: ${parsed.ai_is_valid ? 'Valid Format' : 'Flagged'}, Confidence: ${parsed.ai_confidence_score}% | STATUS:200 | LATENCY:${latency}ms`
+    ));
 
     return NextResponse.json({
       success: true,

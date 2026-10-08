@@ -17,6 +17,8 @@ import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
 import TablePagination from "@/components/table/TablePagination"
 import { supabase } from "@/supabase/util/supabase"
 import { buildReportHierarchy, fetchAllIncidentReports } from "@/lib/situational-report-hierarchy.mjs"
+import { getIncidentCoordinates } from "@/lib/reports/incidentCoordinates.mjs"
+import IncidentLocationMap from "./IncidentLocationMap"
 import {
   ChevronRight,
   ChevronDown,
@@ -246,7 +248,7 @@ const getInitials = (name) => {
 
 // Parse situation description for Field Status, Clean Note, and Attached Document
 const parseSituationDescription = (description) => {
-  if (!description) return { fieldStatus: null, note: "No situation details provided.", attachedDoc: null };
+  if (!description) return { fieldStatus: null, note: "No situation details provided.", attachedDoc: null, linkedReportId: null };
 
   let fieldStatus = null;
   const statusMatch = description.match(/\[Field Status:\s*([^\]]+)\]/i);
@@ -260,14 +262,18 @@ const parseSituationDescription = (description) => {
     attachedDoc = docMatch[1].trim();
   }
 
+  const linkedReportMatch = description.match(/\[Linked Situational Report:\s*([^\]]+)\]/i);
+  const linkedReportId = linkedReportMatch?.[1].trim() || null;
+
   const cleanNote = description
     .replace(/\[Field Status:\s*[^\]]+\]/gi, "")
     .replace(/\[Attached Document:\s*[^\]]+\]/gi, "")
+    .replace(/\[Linked Situational Report:\s*[^\]]+\]/gi, "")
     .replace(/\[MODERATE REPORT\]/gi, "")
     .replace(/\[SITUATIONAL\]/gi, "")
     .trim();
 
-  return { fieldStatus, note: cleanNote, attachedDoc };
+  return { fieldStatus, note: cleanNote, attachedDoc, linkedReportId };
 };
 
 // Extract all attachments from description and image_url
@@ -912,6 +918,8 @@ export default function LGUTable() {
     return parseSituationDescription(selectedReport?.description);
   }, [selectedReport]);
 
+  const selectedCoordinates = useMemo(() => getIncidentCoordinates(selectedReport), [selectedReport]);
+
   return (
     <div className="grid gap-4">
       {/* ── Header with Flex & Justify-Between Toggle ── */}
@@ -1454,6 +1462,13 @@ export default function LGUTable() {
                       {parsedSituation.note}
                     </div>
 
+                    {parsedSituation.linkedReportId && (
+                      <div className="text-xs text-gray-600">
+                        <span className="font-bold">Linked situational report</span>
+                        <span className="block mt-1 font-mono break-all">ID: {parsedSituation.linkedReportId}</span>
+                      </div>
+                    )}
+
                     {/* Attached Document Button inside Report Box */}
                     {parsedSituation.attachedDoc && (
                       <div className="pt-2">
@@ -1483,41 +1498,21 @@ export default function LGUTable() {
                       Location Coordinates
                     </h3>
                     <span className="text-xs font-mono font-bold text-blue-600">
-                      {selectedReport.latitude && selectedReport.longitude
-                        ? `${Number(selectedReport.latitude).toFixed(4)}° N, ${Number(selectedReport.longitude).toFixed(4)}° E`
-                        : "10.3181° N, 123.9950° E"}
+                      {selectedCoordinates
+                        ? `${Math.abs(selectedCoordinates.latitude).toFixed(4)}° ${selectedCoordinates.latitude < 0 ? "S" : "N"}, ${Math.abs(selectedCoordinates.longitude).toFixed(4)}° ${selectedCoordinates.longitude < 0 ? "W" : "E"}`
+                        : "Unavailable"}
                     </span>
                   </div>
 
-                  <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-slate-100 h-36 flex items-center justify-center group">
-                    <div
-                      className="absolute inset-0 opacity-70 bg-cover bg-center"
-                      style={{
-                        backgroundImage: `radial-gradient(#3b82f6 0.75px, transparent 0.75px), radial-gradient(#60a5fa 0.75px, #f8fafc 0.75px)`,
-                        backgroundSize: "24px 24px",
-                        backgroundPosition: "0 0, 12px 12px"
-                      }}
+                  <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-slate-100 h-36 flex items-center justify-center">
+                    <IncidentLocationMap
+                      key={selectedReport.report_id}
+                      coordinates={selectedCoordinates}
+                      municipality={selectedReport.municipality_or_city?.name || selectedReport.municipality_name}
                     />
-
-                    <svg className="absolute inset-0 w-full h-full text-blue-200/80" preserveAspectRatio="none">
-                      <path d="M-20,90 Q120,40 260,70 T540,50" fill="none" stroke="currentColor" strokeWidth="14" strokeLinecap="round" />
-                      <path d="M120,-10 Q160,80 180,180" fill="none" stroke="currentColor" strokeWidth="10" strokeLinecap="round" />
-                      <path d="M-20,90 Q120,40 260,70 T540,50" fill="none" stroke="#fff" strokeWidth="2" strokeDasharray="6 6" />
-                    </svg>
-
-                    <div className="relative z-10 flex flex-col items-center">
-                      <div className="size-8 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg animate-bounce">
-                        <MapPin className="size-5 fill-white text-red-600" />
-                      </div>
-                      <div className="mt-1 px-3 py-1 bg-white/95 backdrop-blur-xs rounded-full border border-gray-200 shadow-md text-xs font-bold text-gray-800 flex items-center gap-1.5 whitespace-nowrap">
-                        <span className="size-2 rounded-full bg-red-500" />
-                        {selectedReport.location_name || selectedReport.municipality_name}
-                      </div>
-                    </div>
-
-                    {selectedReport.latitude && selectedReport.longitude && (
+                    {selectedCoordinates && (
                       <a
-                        href={`https://www.google.com/maps?q=${selectedReport.latitude},${selectedReport.longitude}`}
+                        href={`https://www.google.com/maps?q=${selectedCoordinates.latitude},${selectedCoordinates.longitude}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="absolute bottom-2 right-2 z-20 text-[11px] font-bold text-blue-600 bg-white/90 hover:bg-white px-2 py-1 rounded-lg border border-blue-200 flex items-center gap-1 shadow-xs"
@@ -1527,7 +1522,6 @@ export default function LGUTable() {
                     )}
                   </div>
                 </div>
-
                 {/* 4. Citizen / App Field Photos & Clickable Documents */}
                 <div>
                   <h3 className="text-xs font-extrabold text-gray-500 uppercase tracking-wider mb-2 flex items-center justify-between">

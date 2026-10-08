@@ -3,7 +3,7 @@
     "floodwatch-lantaw": {
       "command": "node",
       "args": [
-        "src/lantaw/mcp_server.mjs"
+        "src/lantaw/mcp_cli.mjs"
       ],
       "env": {
         "NODE_ENV": "development"

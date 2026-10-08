@@ -14,6 +14,9 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
   const [isLoading, setIsLoading] = useState(true)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [aiLoading, setAiLoading] = useState(false)
+  const [decisionLoading, setDecisionLoading] = useState(false)
+  const [decisionError, setDecisionError] = useState(null)
+  const [status, setStatus] = useState(data?.status || 'pending')
   const [aiResult, setAiResult] = useState({
     ai_is_valid: data?.ai_is_valid ?? null,
     ai_confidence_score: data?.ai_confidence_score ?? null,
@@ -24,6 +27,8 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
   useEffect(() => {
     setCurrentImageIndex(0)
     setImageError(false)
+    setStatus(data?.status || 'pending')
+    setDecisionError(null)
     setAiResult({
       ai_is_valid: data?.ai_is_valid ?? null,
       ai_confidence_score: data?.ai_confidence_score ?? null,
@@ -74,16 +79,12 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
     if (aiLoading || !data) return;
     setAiLoading(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/lantaw/verify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
         body: JSON.stringify({
-          id_verification_id: data.id_verification_id,
-          user_id: data.user_id,
-          userName: userName !== "Loading..." && userName !== "Unknown" ? userName : null,
-          id_type: data.id_type,
-          id_image_url: data.id_image_url,
-          selfie_url: data.selfie_url
+          id_verification_id: data.id_verification_id
         })
       });
       const resData = await res.json();
@@ -99,6 +100,30 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
       console.error("AI verification failed:", err);
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  const decide = async (decision) => {
+    if (decisionLoading) return;
+    setDecisionLoading(true);
+    setDecisionError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Please sign in to review this request.');
+      const response = await fetch('/api/verification/decision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ id_verification_id: data.id_verification_id, decision }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to save decision.');
+      setStatus(result.verification.status);
+      window.dispatchEvent(new Event('verification_status_updated'));
+      onStatusUpdate?.();
+    } catch (error) {
+      setDecisionError(error.message);
+    } finally {
+      setDecisionLoading(false);
     }
   };
 
@@ -159,9 +184,9 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
               <div>
                 <CardBasedText className="text-xs text-gray-500 mb-1">Status</CardBasedText>
                 {isLoading ? <div className="w-20 mt-1"><SingleLineSkeleton /></div> : (() => {
-                  const isApproved = data.status?.toLowerCase() === 'verified' || data.status?.toLowerCase() === 'approved' || data.profile_is_verified || (aiResult?.ai_is_valid && Number(aiResult?.ai_confidence_score) >= 80);
-                  const isPending = !isApproved && (data.status?.toLowerCase() === 'pending' || !data.status);
-                  const displayStatus = isApproved ? 'Approved' : isPending ? 'Pending' : (data.status ? data.status.charAt(0).toUpperCase() + data.status.slice(1) : 'Pending');
+                  const isApproved = ['verified', 'approved'].includes(status?.toLowerCase());
+                  const isPending = status?.toLowerCase() === 'pending';
+                  const displayStatus = isApproved ? 'Approved' : isPending ? 'Pending Admin Approval' : 'Rejected';
                   return (
                     <div className={`font-semibold text-sm ${isApproved ? 'text-green-500' : isPending ? 'text-amber-500' : 'text-red-500'}`}>
                       {displayStatus}
@@ -282,11 +307,11 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
                     <div className="w-24 mt-1"><SingleLineSkeleton /></div>
                   ) : (
                     <div className="flex items-center gap-2">
-                      {aiResult.ai_is_valid !== false ? (
+                      {aiResult.ai_is_valid === true ? (
                         <><CheckCircle2 className="size-4 text-emerald-500" /><span className="text-sm font-semibold text-emerald-600">Valid Format</span></>
-                      ) : (
+                      ) : aiResult.ai_is_valid === false ? (
                         <><XCircle className="size-4 text-red-500" /><span className="text-sm font-semibold text-red-600">Flagged Format</span></>
-                      )}
+                      ) : <span className="text-sm text-gray-500">Awaiting analysis</span>}
                     </div>
                   )}
                 </div>
@@ -298,7 +323,7 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
                     <div className="w-16 mt-1 ml-auto"><SingleLineSkeleton /></div>
                   ) : (
                     <div className="text-lg font-bold text-gray-800">
-                      {aiResult.ai_confidence_score != null ? `${Number(aiResult.ai_confidence_score).toFixed(0)}%` : '92%'}
+                      {aiResult.ai_confidence_score != null ? `${Number(aiResult.ai_confidence_score).toFixed(0)}%` : 'Awaiting analysis'}
                     </div>
                   )}
                 </div>
@@ -312,7 +337,7 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
                   <div className="w-full mt-1"><SingleLineSkeleton /></div>
                 ) : (
                   <p className="text-xs text-gray-700 italic mt-1 leading-relaxed bg-white/70 p-2.5 rounded-lg border border-gray-100">
-                    "{aiResult.ai_insight || data.ai_insight || 'Official ID credentials format validated successfully by Lantaw AI analysis.'}"
+                    &ldquo;{aiResult.ai_insight || data.ai_insight || 'Awaiting AI assessment.'}&rdquo;
                   </p>
                 )}
               </div>
@@ -321,7 +346,12 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
         </div>
 
         {/* Footer */}
-        <div className="pt-4 border-t border-gray-100 flex justify-end shrink-0">
+        <div className="pt-4 border-t border-gray-100 flex flex-wrap justify-end gap-2 shrink-0">
+          {decisionError && <p role="alert" className="w-full text-xs text-red-600">{decisionError}</p>}
+          {status?.toLowerCase() === 'pending' && <>
+            <button type="button" disabled={decisionLoading} onClick={() => decide('rejected')} className="px-5 py-2.5 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl disabled:opacity-50">Reject</button>
+            <button type="button" disabled={decisionLoading} onClick={() => decide('approved')} className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl disabled:opacity-50">Approve</button>
+          </>}
           <button
             type="button"
             className="w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all cursor-pointer text-center"

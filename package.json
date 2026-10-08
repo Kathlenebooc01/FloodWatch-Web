@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "mcp": "node src/lantaw/mcp_server.mjs"
+    "mcp": "node src/lantaw/mcp_cli.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.0",

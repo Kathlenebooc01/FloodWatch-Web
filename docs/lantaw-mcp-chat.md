@@ -1,7 +1,7 @@
 Lantaw chat now calls the configured MCP server through a reused SDK client and
 an in-process MCP transport. This executes the same registered tools as the
 standalone stdio server without launching a child process for every message.
-Standalone startup remains `node src/lantaw/mcp_server.mjs`; both `.env` and
+Standalone startup is `node src/lantaw/mcp_cli.mjs`; both `.env` and
 `.env.local` are loaded, and process environment variables take precedence.
 
 The AI retains its FloodWatch topic restriction; unrelated questions, including

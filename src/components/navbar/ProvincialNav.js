@@ -1,42 +1,24 @@
 "use client"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { LayoutDashboard, Radar, Calendar, Archive, Presentation } from "lucide-react"
 import { supabase } from "@/supabase/util/supabase"
 import { getStoredViewTime, NOTIF_KEYS } from "@/lib/notifications/unreadTracker"
+import { fetchProvincialMonitoringUnreadCounts } from "@/lib/notifications/provincialMonitoringUnread.mjs"
 
 export default function ProvincialNav() {
   const pathname = usePathname()
   const [monitoringCount, setMonitoringCount] = useState(0)
   const [requestsCount, setRequestsCount] = useState(0)
+  const latestFetch = useRef(0)
 
   const fetchBadgeCounts = useCallback(async () => {
+    const fetchId = ++latestFetch.current
     try {
       const lastReportView = getStoredViewTime(NOTIF_KEYS.REPORT)
       const lastLguView = getStoredViewTime(NOTIF_KEYS.LGU)
       const lastRequestView = getStoredViewTime(NOTIF_KEYS.REQUEST)
-
-      // Latest time between report and lgu for monitoring
-      const latestMonitoringView = [lastReportView, lastLguView].filter(Boolean).sort().reverse()[0] || null
-
-      let repQuery = supabase
-        .from("incident_report")
-        .select("report_id", { count: "exact", head: true })
-        .in("status", [
-          "Pending_AI", "pending_ai",
-          "Ready_For_LGU", "Ready_for_LGU", "ready_for_lgu",
-          "Pending", "pending",
-          "Submitted", "submitted",
-          "Under_Review", "under_review"
-        ])
-      if (latestMonitoringView) repQuery = repQuery.gt("created_at", latestMonitoringView)
-
-      let disQuery = supabase
-        .from("distress_signals")
-        .select("distress_id", { count: "exact", head: true })
-        .in("status", ["Pending", "pending", "PENDING"])
-      if (latestMonitoringView) disQuery = disQuery.gt("created_at", latestMonitoringView)
 
       let reqQuery = supabase
         .from("resource_requests")
@@ -44,14 +26,14 @@ export default function ProvincialNav() {
         .in("status", ["Pending", "pending"])
       if (lastRequestView) reqQuery = reqQuery.gt("created_at", lastRequestView)
 
-      const [repRes, disRes, reqRes] = await Promise.all([
-        repQuery,
-        disQuery,
-        reqQuery
+      const [monitoring, reqRes] = await Promise.all([
+        fetchProvincialMonitoringUnreadCounts(supabase, lastReportView, lastLguView),
+        reqQuery,
       ])
+      if (reqRes.error) throw reqRes.error
+      if (fetchId !== latestFetch.current) return
 
-      const totalMonitoring = (repRes.count || 0) + (disRes.count || 0)
-      setMonitoringCount(totalMonitoring)
+      setMonitoringCount(monitoring.reportCount + monitoring.lguCount)
       setRequestsCount(reqRes.count || 0)
     } catch (err) {
       console.error("Error fetching provincial nav badge counts:", err)
@@ -59,7 +41,7 @@ export default function ProvincialNav() {
   }, [])
 
   useEffect(() => {
-    fetchBadgeCounts()
+    void Promise.resolve().then(fetchBadgeCounts)
 
     const handleViewed = () => fetchBadgeCounts()
     window.addEventListener("fw_notification_viewed", handleViewed)

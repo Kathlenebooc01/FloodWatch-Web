@@ -45,6 +45,7 @@ export default function InviteUserModal({ onClose }) {
   // Municipality state
   const [municipalitySearch, setMunicipalitySearch] = useState("")
   const [selectedMunicipality, setSelectedMunicipality] = useState("")
+  const [selectedMunicipalityId, setSelectedMunicipalityId] = useState("")
   const [municipalities, setMunicipalities] = useState([])
   const [loadingMunicipalities, setLoadingMunicipalities] = useState(false)
   const [municipalityDropdownOpen, setMunicipalityDropdownOpen] = useState(false)
@@ -112,21 +113,20 @@ export default function InviteUserModal({ onClose }) {
 
   // Load all municipalities when province is selected
   useEffect(() => {
+    let cancelled = false
     if (selectedProvince && selectedRole === "lgu_headmaster") {
-      setSelectedMunicipality("")
-      setMunicipalitySearch("")
-      fetchMunicipalities("")
-    } else {
-      setMunicipalities([])
-      setSelectedMunicipality("")
-      setMunicipalitySearch("")
+      void Promise.resolve().then(() => {
+        if (!cancelled) return fetchMunicipalities("")
+      })
     }
+    return () => { cancelled = true }
   }, [selectedProvince, selectedRole, fetchMunicipalities])
 
   // Debounced search handler
   const handleMunicipalitySearchChange = (e) => {
     const value = e.target.value
     setMunicipalitySearch(value)
+    setSelectedMunicipalityId("")
     setMunicipalityDropdownOpen(true)
 
     // Clear previous timer
@@ -140,14 +140,6 @@ export default function InviteUserModal({ onClose }) {
     }, 300)
   }
 
-  // Clear municipality when role changes away from LGU headmaster
-  useEffect(() => {
-    if (selectedRole !== "lgu_headmaster") {
-      setSelectedMunicipality("")
-      setMunicipalitySearch("")
-    }
-  }, [selectedRole])
-
   const handleSubmit = async (e) => {
     e.preventDefault()
     
@@ -160,7 +152,7 @@ export default function InviteUserModal({ onClose }) {
       setError("Please select an account role.")
       return
     }
-    if (selectedRole === "lgu_headmaster" && !selectedMunicipality) {
+    if (selectedRole === "lgu_headmaster" && (!selectedMunicipality || !selectedMunicipalityId)) {
       setError("Please select a municipality.")
       return
     }
@@ -212,7 +204,8 @@ export default function InviteUserModal({ onClose }) {
         status: 'pending',
         invited_by: user.id,
         expires_at: expiresAt,
-        invite_code: inviteCode
+        invite_code: inviteCode,
+        ...(selectedRole === "lgu_headmaster" ? { municipality_id: selectedMunicipalityId } : {})
       }
 
       const { data: invite, error: insertError } = await supabase
@@ -222,6 +215,9 @@ export default function InviteUserModal({ onClose }) {
         .single()
 
       if (insertError) throw insertError
+      if (selectedRole === "lgu_headmaster" && invite?.municipality_id !== selectedMunicipalityId) {
+        throw new Error("The municipality assignment was not saved. Please try again.")
+      }
 
       // Log to browser console for easy access during testing
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
@@ -324,7 +320,15 @@ export default function InviteUserModal({ onClose }) {
                                 <button
                                     key={role.value}
                                     type="button"
-                                    onClick={() => setSelectedRole(role.value)}
+                                    onClick={() => {
+                                        if (selectedRole !== role.value) {
+                                            setSelectedMunicipality("")
+                                            setSelectedMunicipalityId("")
+                                            setMunicipalitySearch("")
+                                            setMunicipalities([])
+                                        }
+                                        setSelectedRole(role.value)
+                                    }}
                                     className={`
                                         relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 cursor-pointer
                                         transition-all duration-200
@@ -393,6 +397,12 @@ export default function InviteUserModal({ onClose }) {
                                             key={prov.province_id}
                                             type="button"
                                             onClick={() => {
+                                                if (lguName !== prov.name) {
+                                                    setSelectedMunicipality("")
+                                                    setSelectedMunicipalityId("")
+                                                    setMunicipalitySearch("")
+                                                    setMunicipalities([])
+                                                }
                                                 setLguName(prov.name)
                                                 setDropdownOpen(false)
                                             }}
@@ -429,6 +439,7 @@ export default function InviteUserModal({ onClose }) {
                                     if (selectedMunicipality) {
                                         setMunicipalitySearch("")
                                         setSelectedMunicipality("")
+                                        setSelectedMunicipalityId("")
                                     }
                                     setMunicipalityDropdownOpen(true)
                                     if (!municipalitySearch) fetchMunicipalities("")
@@ -458,6 +469,7 @@ export default function InviteUserModal({ onClose }) {
                                                 type="button"
                                                 onClick={() => {
                                                     setSelectedMunicipality(mun.name)
+                                                    setSelectedMunicipalityId(mun.municipality_id)
                                                     setMunicipalitySearch("")
                                                     setMunicipalityDropdownOpen(false)
                                                 }}

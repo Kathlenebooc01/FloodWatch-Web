@@ -14,7 +14,7 @@ import TableData from "../table/TableData"
 import TableDataMuted from "../table/TableDataMuted"
 import TableBadge from "../table/TableBadge"
 import TableDataAction from "../table/TableDataAction"
-import { Eye, ChevronRight } from "lucide-react"
+import { ChevronRight } from "lucide-react"
 import VerificationTableModal from "./VerificationTableModal"
 import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
 import { supabase } from "@/supabase/util/supabase"
@@ -40,7 +40,7 @@ export default function VerificationTable() {
           .order("submitted_at", { ascending: false }),
         supabase
           .from("profiles")
-          .select("id, full_name, is_verified")
+          .select("id, full_name")
       ]);
 
       const data = verifsRes.data;
@@ -54,19 +54,10 @@ export default function VerificationTable() {
 
         const mapped = data.map(row => {
           const prof = profileMap.get(row.user_id);
-          const isProfVerified = prof?.is_verified === true;
-          const isAiApproved = row.ai_is_valid && Number(row.ai_confidence_score) >= 80;
-          const isApproved = row.status?.toLowerCase() === 'approved' || row.status?.toLowerCase() === 'verified' || isProfVerified || isAiApproved;
-          const isRejected = row.status?.toLowerCase() === 'rejected' || (row.ai_is_valid === false && Number(row.ai_confidence_score) > 0 && Number(row.ai_confidence_score) < 80);
-
-          const effectiveStatus = isApproved ? 'approved' : (isRejected ? 'rejected' : 'pending');
-
           return {
             ...row,
-            status: effectiveStatus,
             full_name: prof?.full_name || null,
             userName: prof?.full_name || row.user_id,
-            profile_is_verified: isProfVerified,
           };
         });
 
@@ -103,9 +94,6 @@ export default function VerificationTable() {
     const pollInterval = setInterval(() => {
       fetchVerifications(false)
     }, 2000)
-
-    // 4. Background DB synchronization with service role
-    fetch('/api/verification/sync', { method: 'POST' }).catch(() => {})
 
     return () => {
       window.removeEventListener('verification_status_updated', handleLocalUpdate)
@@ -157,7 +145,7 @@ export default function VerificationTable() {
       case 'approved':
         return <TableBadge className="bg-green-500/10 text-green-500">{formattedStatus}</TableBadge>
       case 'pending':
-        return <TableBadge className="bg-amber-500/10 text-amber-500">{formattedStatus}</TableBadge>
+        return <TableBadge className="bg-amber-500/10 text-amber-500">Pending Admin Approval</TableBadge>
       default:
         return <TableBadge className="bg-red-500/10 text-red-500">{formattedStatus}</TableBadge>
     }

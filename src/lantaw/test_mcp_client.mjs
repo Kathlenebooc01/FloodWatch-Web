@@ -6,7 +6,7 @@ async function runDemo() {
 
   const transport = new StdioClientTransport({
     command: "node",
-    args: ["src/lantaw/mcp_server.mjs"],
+    args: ["src/lantaw/mcp_cli.mjs"],
   });
 
   const client = new Client(
