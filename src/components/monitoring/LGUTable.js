@@ -18,6 +18,7 @@ import TablePagination from "@/components/table/TablePagination"
 import { supabase } from "@/supabase/util/supabase"
 import { buildReportHierarchy, fetchAllIncidentReports } from "@/lib/situational-report-hierarchy.mjs"
 import { getIncidentCoordinates } from "@/lib/reports/incidentCoordinates.mjs"
+import { hasNewReports, newestReportTimestamp } from "@/lib/notifications/reportSeen.mjs"
 import IncidentLocationMap from "./IncidentLocationMap"
 import {
   ChevronRight,
@@ -331,16 +332,24 @@ export default function LGUTable() {
   const [isSubmittingReport, setIsSubmittingReport] = useState(false)
   const [isSubmittingDistress, setIsSubmittingDistress] = useState(false)
 
-  // Viewed tracker for Red Dot persistence (always store as strings for consistent comparison)
-  const [viewedReportIds, setViewedReportIds] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem("floodwatch_viewed_reports");
-        return stored ? JSON.parse(stored).map(String) : [];
-      } catch (e) {}
-    }
-    return [];
-  })
+  const [reportSeenAt, setReportSeenAt] = useState(null)
+  const [reportSeenReady, setReportSeenReady] = useState(false)
+  const [reportsLoaded, setReportsLoaded] = useState(false)
+  const [reportLoadVersion, setReportLoadVersion] = useState(0)
+  const persistedReportSeenAt = useRef(null)
+  const reportSeenWriteInFlight = useRef(false)
+
+  useEffect(() => {
+    let active = true
+    supabase.auth.getUser().then(({ data }) => {
+      if (!active) return
+      const saved = data?.user?.user_metadata?.provincial_reports_seen_at || null
+      persistedReportSeenAt.current = saved
+      setReportSeenAt(saved)
+      setReportSeenReady(true)
+    }).catch(() => { if (active) setReportSeenReady(true) })
+    return () => { active = false }
+  }, [])
 
   const [viewedDistressIds, setViewedDistressIds] = useState(() => {
     if (typeof window !== "undefined") {
@@ -467,6 +476,8 @@ export default function LGUTable() {
         }
 
         setReports(processedReports);
+        setReportsLoaded(true);
+        setReportLoadVersion(version => version + 1);
         setDistressSignals(combinedDistress);
 
         setExpandedMunicipalities((prev) => {
@@ -569,27 +580,28 @@ export default function LGUTable() {
 
   // Unviewed Report Count for Red Dot — shows for ANY report not yet clicked/viewed
   const hasUnviewedReports = useMemo(() => {
-    return reports.some((r) => !viewedReportIds.includes(String(r.report_id)));
-  }, [reports, viewedReportIds]);
+    return reportSeenReady && reportsLoaded && activeTab !== "Report Table" &&
+      hasNewReports(reports, reportSeenAt);
+  }, [reports, reportSeenAt, reportSeenReady, reportsLoaded, activeTab]);
+
+  useEffect(() => {
+    if (!reportSeenReady || !reportsLoaded || activeTab !== "Report Table" || reportSeenWriteInFlight.current) return
+    const newest = newestReportTimestamp(reports)
+    if (!newest || (persistedReportSeenAt.current && newest <= persistedReportSeenAt.current)) return
+    setReportSeenAt(newest)
+    reportSeenWriteInFlight.current = true
+    supabase.auth.updateUser({ data: { provincial_reports_seen_at: newest } }).then(({ error }) => {
+      if (error) throw error
+      persistedReportSeenAt.current = newest
+      setReportLoadVersion(version => version + 1)
+    }).catch(error => console.error('Unable to save Reports table view:', error))
+      .finally(() => { reportSeenWriteInFlight.current = false })
+  }, [activeTab, reports, reportsLoaded, reportSeenReady, reportLoadVersion]);
 
   // Unviewed Distress / Escalation Count for Red Dot — shows for ANY signal not yet clicked/viewed
   const hasUnviewedDistress = useMemo(() => {
     return distressSignals.some((d) => !viewedDistressIds.includes(String(d.distress_id)));
   }, [distressSignals, viewedDistressIds]);
-
-  // Mark report as viewed so red dot disappears (always store as string)
-  const markReportAsViewed = (reportId) => {
-    if (!reportId) return;
-    const idStr = String(reportId);
-    if (viewedReportIds.includes(idStr)) return;
-    const updated = [...viewedReportIds, idStr];
-    setViewedReportIds(updated);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("floodwatch_viewed_reports", JSON.stringify(updated));
-      } catch (e) {}
-    }
-  };
 
   // Mark distress as viewed so red dot disappears (always store as string)
   const markDistressAsViewed = (distressId) => {
@@ -622,7 +634,6 @@ export default function LGUTable() {
 
   // Open / Close Report Modal
   const handleOpenReportModal = (item) => {
-    markReportAsViewed(item.report_id);
     setSelectedReport(item);
     setIsReportModalOpen(true);
   };
