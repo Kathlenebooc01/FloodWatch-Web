@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { chatTopic, chatTopics, sanitizeContext, getMunicipalityWeather, weatherReply, getChatContext, registerChatTools } from '../src/lib/lantaw/chat-tools.mjs';
+import { chatTopic, chatTopics, sanitizeContext, getMunicipalityWeather, weatherReply, getChatContext, getMonitoringSnapshot, monitoringReply, registerChatTools } from '../src/lib/lantaw/chat-tools.mjs';
 import { callLantawTool } from '../src/lib/lantaw/mcp-client.mjs';
 
 const now = Date.parse('2026-10-08T03:00:00Z');
@@ -21,6 +21,61 @@ test('weather questions select the weather tool category', () => {
  assert.equal(chatTopic('temperature lapu lapu city todayu'), 'weather');
   assert.equal(chatTopic('Explain flood safety in one sentence.'), 'guidance');
   assert.equal(chatTopic('show recent flood reports'), 'reports');
+});
+test('air quality questions use air data and resolve municipality names without a database join', async () => {
+  assert.deepEqual(chatTopics('How to check air quality and PM2.5?'), ['air']);
+  const backend = db([{ municipality_id: 'lapu-id', aqi: 42, pm2_5: 10, recorded_at: new Date(now).toISOString() }]);
+  const context = await getChatContext(backend, 'air');
+  assert.deepEqual(backend.calls.map(call => call.table), ['air_quality', 'municipality_or_city']);
+  assert.equal(context.records[0].municipality, 'Lapu-Lapu City');
+  assert.equal(context.records[0].aqi, 42);
+  assert.ok(!JSON.stringify(context).includes('lapu-id'));
+});
+test('monitoring snapshot joins the latest air, weather, heat and hazard alerts for one municipality', async () => {
+  const rows = {
+    municipality_or_city: [{ municipality_id: 'cebu-id', name: 'Cebu City' }],
+    weather_telemetry: [{ municipality_id: 'cebu-id', temperature: 32, humidity: 70, fetched_at: new Date(now).toISOString() }],
+    air_quality: [{ municipality_id: 'cebu-id', aqi: 72, pm2_5: 22, status: 'Moderate', recorded_at: '2026-09-21T07:41:40Z' }],
+    municipality_alerts: [{ municipality_id: 'cebu-id', title: 'Flood advisory' }],
+    incident_report: [{ hazard_type: 'flood', status: 'active', created_at: new Date(now).toISOString() }],
+  };
+  const calls = [];
+  const backend = { from(table) { calls.push(table); return {
+    select() { return this; }, eq() { return this; }, order() { return this; },
+    async limit() { return { data: rows[table], error: null }; },
+  }; } };
+  const snapshot = await getMonitoringSnapshot(backend, 'cebu city air quality today', { now });
+  assert.deepEqual(calls, ['municipality_or_city', 'weather_telemetry', 'air_quality', 'municipality_alerts', 'incident_report']);
+  assert.equal(snapshot.air.aqi, 72);
+  assert.equal(snapshot.air.freshness, 'historical');
+  assert.equal(snapshot.weather.temperature_c, 32);
+  assert.ok(snapshot.heat.heat_index_c > 32);
+  assert.equal(snapshot.hazards.alerts[0].title, 'Flood advisory');
+  assert.equal(snapshot.hazards.reports[0].hazard_type, 'flood');
+  assert.ok(!JSON.stringify(snapshot).includes('cebu-id'));
+  assert.match(monitoringReply(snapshot, 'air'), /historical air quality/);
+  assert.match(monitoringReply(snapshot, 'air'), /No recent reading/);
+  assert.deepEqual(chatTopics('Cebu City air quality, heat index and hazards'), ['air', 'heat', 'hazards']);
+});
+test('stale stored air falls back to fresh coordinate-matched provider air without mixing AQI scales', async () => {
+  const locations = [{ municipality_id: 'cebu-id', name: 'Cebu City', center_latitude: 10.3157, center_longitude: 123.8854 }];
+  const backend = { from(table) { return {
+    select() { return this; }, eq() { return this; }, order() { return this; },
+    async limit() { return { data: table === 'municipality_or_city' ? locations : table === 'air_quality'
+      ? [{ aqi: 72, recorded_at: '2026-09-21T07:41:40Z' }] : [], error: null }; },
+  }; } };
+  const snapshot = await getMonitoringSnapshot(backend, 'Cebu City air quality today', { now, weatherKey: 'test', fetchImpl: async url => {
+    assert.equal(url.searchParams.get('lat'), '10.3157');
+    assert.equal(url.searchParams.get('lon'), '123.8854');
+    return { ok: true, async json() { return { list: [{ dt: now / 1000, main: { aqi: 2 }, components: { pm2_5: 8.4, pm10: 13 } }] }; } };
+  } });
+  assert.equal(snapshot.air.provider_aqi, 2);
+  assert.equal(snapshot.air.aqi, undefined);
+  assert.match(monitoringReply(snapshot, 'air'), /Air quality index 2\/5/);
+  assert.match(monitoringReply(snapshot, 'air'), /Previous stored AQI: 72/);
+  assert.match(monitoringReply(snapshot, 'air'), /older reading on a different AQI scale/);
+  assert.ok(!monitoringReply(snapshot, 'air').includes('Source:'));
+  assert.ok(!monitoringReply(snapshot, 'air').includes('OpenWeather'));
 });
 test('Lapu-Lapu weather is looked up by its real municipality ID and never uses Cebu readings', async () => {
   const backend = db([
@@ -86,7 +141,7 @@ test('multi-topic questions retrieve all relevant categories and disclose indivi
   assert.ok(chatTopics('overview of everything in FloodWatch').includes('air'));
   const backend = db();
   const context = await getChatContext(backend, ['reports', 'inventory', 'air', 'reports']);
-  assert.deepEqual(backend.calls.map(call => call.table), ['incident_report', 'pdrrmo_inventory', 'air_quality']);
+  assert.deepEqual(backend.calls.map(call => call.table), ['incident_report', 'pdrrmo_inventory', 'air_quality', 'municipality_or_city']);
   assert.equal(context.categories.length, 3);
   const unavailable = await getChatContext(db([], true), ['reports', 'air']);
   assert.ok(unavailable.categories.every(category => category.available === false));

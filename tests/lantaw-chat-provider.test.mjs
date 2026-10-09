@@ -12,15 +12,30 @@ test('chat uses a short generation budget and minimal supported thinking for Fla
   } });
   assert.equal(answer, 'Concise answer');
 });
-test('overload has at most two attempts and does not cascade across nine calls', async () => {
+test('overload tries three distinct models and stops', async () => {
   let calls = 0;
-  await assert.rejects(generateChatAnswer('question', { model: 'configured-model', apiKey: 'test', wait: async () => {},
+  await assert.rejects(generateChatAnswer('question', { model: 'configured-model', apiKey: 'test',
     fetchImpl: async () => { calls++; return { ok: false, status: 503 }; } }), /temporarily busy/);
-  assert.equal(calls, 2);
+  assert.equal(calls, 3);
+});
+test('backup models receive the same MCP grounded prompt and remain private', async () => {
+  const calls = [];
+  const answer = await generateChatAnswer('Verified MCP context: {"aqi":42}', {
+    model: 'main-model', apiKey: 'main-key', backupModel: 'backup-model', backupKey: 'backup-key',
+    thirdModel: 'third-model', thirdKey: 'third-key',
+    fetchImpl: async (url, options) => {
+      calls.push({ url, key: options.headers['x-goog-api-key'], prompt: JSON.parse(options.body).contents[0].parts[0].text });
+      return calls.length < 3 ? { ok: false, status: 429 } : ok('AQI is 42.');
+    },
+  });
+  assert.equal(answer, 'AQI is 42.');
+  assert.deepEqual(calls.map(call => call.key), ['main-key', 'backup-key', 'third-key']);
+  assert.ok(calls.every(call => call.prompt === calls[0].prompt));
+  assert.ok(calls.every(call => !call.url.includes('key=')));
 });
 test('unsupported model configuration fails immediately and incomplete text is not accepted', async () => {
   let calls = 0;
-  await assert.rejects(generateChatAnswer('question', { model: 'configured-model', apiKey: 'test', fetchImpl: async () => { calls++; return { ok: false, status: 404 }; } }), /configuration/);
+  await assert.rejects(generateChatAnswer('question', { model: 'configured-model', apiKey: 'test', fetchImpl: async () => { calls++; return { ok: false, status: 401 }; } }), /configuration/);
   assert.equal(calls, 1);
   await assert.rejects(generateChatAnswer('question', { model: 'configured-model', apiKey: 'test', fetchImpl: async () => ({ ok: true,
     async json() { return { candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: 'Partial' }] } }] }; } }) }), /incomplete/);

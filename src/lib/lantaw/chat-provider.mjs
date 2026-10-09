@@ -1,8 +1,15 @@
-export async function generateChatAnswer(prompt, { model, apiKey, backupKey, backupModel, json = false, maxOutputTokens = 800, onChunk, fetchImpl = fetch, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
-  if (!apiKey && !backupKey) throw new Error('Lantaw AI is not configured. Contact your administrator.');
-  const deadline = Date.now() + 18000;
+export async function generateChatAnswer(prompt, { model, apiKey, backupKey, backupModel, thirdKey, thirdModel, json = false, maxOutputTokens = 800, onChunk, fetchImpl = fetch } = {}) {
+  if (!apiKey && !backupKey && !thirdKey) throw new Error('Lantaw AI is not configured. Contact your administrator.');
+  const deadline = Date.now() + 16500;
   let emitted = false;
-  const attempts = [{ model, key: apiKey || backupKey }, { model: backupModel || model, key: backupKey || apiKey }];
+  // Every attempt receives the same prompt, including the same verified MCP context.
+  // Distinct models avoid retrying an overloaded model with the same credentials.
+  const attempts = [
+    { model, key: apiKey || backupKey || thirdKey },
+    { model: backupModel || 'gemini-3.5-flash-lite', key: backupKey || apiKey || thirdKey },
+    { model: thirdModel || 'gemini-3.8-flash', key: thirdKey || backupKey || apiKey },
+  ].filter((attempt, index, all) => attempt.model && attempt.key &&
+    all.findIndex(other => other.model === attempt.model && other.key === attempt.key) === index);
   for (let index = 0; index < attempts.length; index++) {
     const current = attempts[index];
     let response;
@@ -11,7 +18,7 @@ export async function generateChatAnswer(prompt, { model, apiKey, backupKey, bac
         : /^gemini-2\.5-flash/.test(current.model) ? { thinkingBudget: 0 } : undefined;
       response = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(current.model)}:${onChunk ? 'streamGenerateContent?alt=sse' : 'generateContent'}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': current.key },
-        signal: AbortSignal.timeout(Math.max(1, Math.min(12000, deadline - Date.now()))),
+        signal: AbortSignal.timeout(Math.max(1, Math.min(5500, deadline - Date.now()))),
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { maxOutputTokens, ...(json ? { responseMimeType: 'application/json' } : {}), ...(thinkingConfig ? { thinkingConfig } : {}) } }),
       });
@@ -32,13 +39,12 @@ export async function generateChatAnswer(prompt, { model, apiKey, backupKey, bac
         if (!text) throw new Error('Lantaw could not produce an answer. Please try again.');
         return text;
       }
-      if (![429, 500, 502, 503, 504].includes(response.status)) throw new Error('Lantaw AI configuration was rejected by the provider. Contact your administrator.');
+      if (![400, 403, 404, 429, 500, 502, 503, 504].includes(response.status)) throw new Error('Lantaw AI configuration was rejected by the provider. Contact your administrator.');
     } catch (error) {
-      if (emitted || response?.ok || (response && ![429, 500, 502, 503, 504].includes(response.status))) throw error;
+      if (emitted || response?.ok || (response && ![400, 403, 404, 429, 500, 502, 503, 504].includes(response.status))) throw error;
       if (index === attempts.length - 1) break;
     }
     if (Date.now() >= deadline) break;
-    if (index === 0) await wait(200);
   }
   throw new Error('Lantaw AI is temporarily busy. Please try again shortly.');
 }

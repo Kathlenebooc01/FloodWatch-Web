@@ -21,7 +21,11 @@ function setup({ weather, toolError } = {}) {
     if (name.includes('mcp-client')) return { async callLantawTool(tool, args) {
       calls.push({ tool, args });
       if (toolError) throw new Error(toolError);
-      return tool === 'get_municipality_weather' ? weather : { source: 'incident_report', sample_limit: 20, records: [] };
+      return tool === 'get_municipality_weather' ? weather : tool === 'get_monitoring_snapshot'
+        ? { municipality: 'Cebu City', air: { aqi: 72, status: 'Moderate', observed_at: '2026-09-21T07:41:40Z', freshness: 'historical' },
+          weather: { temperature_c: 32, observed_at: '2026-10-09T03:00:00Z', freshness: 'recent' },
+          heat: { heat_index_c: 39, observed_at: '2026-10-09T03:00:00Z', freshness: 'recent' }, hazards: { alerts: [] } }
+        : { source: 'incident_report', sample_limit: 20, records: [] };
     } };
     throw new Error('Unexpected import ' + name);
   }, compiledModule, compiledModule.exports, { env: {} });
@@ -55,12 +59,25 @@ test('report questions query only relevant MCP context and preserve bounded conv
   assert.match(route.generated[0], /Lapu-Lapu City/);
   assert.ok(!route.generated[0].includes('SPREADSHEET GENERATION'));
 });
+test('air quality today uses Monitoring data and labels old readings', async () => {
+  const route = setup();
+  const result = await route.POST(request('cebu city air quality today'));
+  assert.equal(route.calls[0].tool, 'get_monitoring_snapshot');
+  assert.match(result.body.response, /historical air quality/);
+  assert.match(result.body.response, /AQI 72/);
+  assert.equal(route.generated.length, 0);
+});
 test('unavailable weather and MCP failure never turn into fabricated factual responses', async () => {
   const route = setup({ weather: { available: false, message: 'Current weather is unavailable.' } });
   assert.equal((await route.POST(request('Lapu-Lapu weather'))).body.response, 'Current weather is unavailable.');
   assert.equal(route.generated.length, 0);
   const failure = setup({ toolError: 'Weather data is temporarily unavailable.' });
-  assert.equal((await failure.POST(request('Lapu-Lapu weather'))).status, 503);
+  const failedWeather = await failure.POST(request('Lapu-Lapu weather'));
+  assert.equal(failedWeather.status, 200);
+  assert.match(failedWeather.body.response, /temporarily unavailable/);
+  assert.equal(failure.generated.length, 0);
+  const failedReports = await failure.POST(request('recent flood reports'));
+  assert.match(failedReports.body.response, /temporarily unavailable/);
   assert.equal(failure.generated.length, 0);
 });
 

@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useEffect, useMemo, useRef } from "react"
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import TableScrollWrapper from "@/components/table/TableScrollWrapper"
 import Table from "@/components/table/Table"
 import DataTable from "@/components/table/DataTable"
@@ -365,6 +365,7 @@ export default function LGUTable() {
 
   // Modal & Selection State
   const [selectedReport, setSelectedReport] = useState(null)
+  const [resolvedMapCoordinates, setResolvedMapCoordinates] = useState(null)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
   const [selectedSignal, setSelectedSignal] = useState(null)
   const [isDistressModalOpen, setIsDistressModalOpen] = useState(false)
@@ -919,6 +920,12 @@ export default function LGUTable() {
   }, [selectedReport]);
 
   const selectedCoordinates = useMemo(() => getIncidentCoordinates(selectedReport), [selectedReport]);
+  const handleResolvedMapCoordinates = useCallback(coordinates => {
+    setResolvedMapCoordinates({ reportId: selectedReport?.report_id, coordinates })
+  }, [selectedReport?.report_id])
+  const displayedCoordinates = selectedCoordinates ||
+    (selectedReport?.report_id && resolvedMapCoordinates?.reportId === selectedReport.report_id
+      ? resolvedMapCoordinates.coordinates : null)
 
   return (
     <div className="grid gap-4">
@@ -1498,8 +1505,8 @@ export default function LGUTable() {
                       Location Coordinates
                     </h3>
                     <span className="text-xs font-mono font-bold text-blue-600">
-                      {selectedCoordinates
-                        ? `${Math.abs(selectedCoordinates.latitude).toFixed(4)}° ${selectedCoordinates.latitude < 0 ? "S" : "N"}, ${Math.abs(selectedCoordinates.longitude).toFixed(4)}° ${selectedCoordinates.longitude < 0 ? "W" : "E"}`
+                      {displayedCoordinates
+                        ? `${Math.abs(displayedCoordinates.latitude).toFixed(10)}° ${displayedCoordinates.latitude < 0 ? "S" : "N"}, ${Math.abs(displayedCoordinates.longitude).toFixed(10)}° ${displayedCoordinates.longitude < 0 ? "W" : "E"}`
                         : "Unavailable"}
                     </span>
                   </div>
@@ -1509,6 +1516,8 @@ export default function LGUTable() {
                       key={selectedReport.report_id}
                       coordinates={selectedCoordinates}
                       municipality={selectedReport.municipality_or_city?.name || selectedReport.municipality_name}
+                      municipalityId={selectedReport.municipality_id}
+                      onLocationChange={handleResolvedMapCoordinates}
                     />
                     {selectedCoordinates && (
                       <a

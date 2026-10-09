@@ -1,39 +1,16 @@
 import { after, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { logAiError, logAiSuccess } from '@/lib/logs/apiLogger';
+import { generateChatAnswer } from '@/lib/lantaw/chat-provider.mjs';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.NEXT_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI;
 const GEMINI_BACKUP_KEY = process.env.GEMINI_LANTAW_BACKUP_AI || process.env.GEMINI_LANTAW_AI;
-const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-flash-latest';
-const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-flash-lite-latest';
+const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-3.1-flash-lite';
+const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.1-flash-lite';
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-
-async function callGemini(prompt, model, apiKey) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(7000),
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 256,
-      }
-    })
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Gemini API error (${model}): ${response.status} - ${errorBody}`);
-  }
-
-  const data = await response.json();
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-}
 
 export async function POST(request) {
   const startTime = Date.now();
@@ -81,13 +58,14 @@ Respond STRICTLY with a valid JSON object only:
 }
 `;
 
-    let rawResponse = "";
-    try {
-      rawResponse = await callGemini(prompt, PRIMARY_MODEL, GEMINI_API_KEY);
-    } catch (err1) {
-      console.warn(`[Lantaw Verification] Primary model failed, trying backup:`, err1.message);
-      rawResponse = await callGemini(prompt, BACKUP_MODEL, GEMINI_BACKUP_KEY || GEMINI_API_KEY);
-    }
+    const rawResponse = await generateChatAnswer(prompt, {
+      model: PRIMARY_MODEL,
+      apiKey: GEMINI_API_KEY,
+      backupKey: GEMINI_BACKUP_KEY,
+      backupModel: BACKUP_MODEL,
+      json: true,
+      maxOutputTokens: 256,
+    });
 
     let parsed = null;
     try {
@@ -137,7 +115,7 @@ Respond STRICTLY with a valid JSON object only:
   } catch (error) {
     const latency = Date.now() - startTime;
     console.error("Lantaw verification failed:", error);
-    await logAiError("Lantaw Verification", error.message || error);
-    return NextResponse.json({ error: error.message || "Verification AI failed" }, { status: 500 });
+    after(() => logAiError("Lantaw Verification", `${error.message || error} | LATENCY:${latency}ms`));
+    return NextResponse.json({ error: error.message || "Verification AI failed" }, { status: 503 });
   }
 }
