@@ -111,7 +111,7 @@ export default function LGUSummary() {
       <GeneralCard className="p-5 grid gap-4 border border-gray-100 shadow-xs hover:shadow-md transition-shadow bg-white rounded-2xl">
         <div className="flex justify-between items-center">
           <CardSubHeader className="text-gray-400 font-extrabold uppercase tracking-wider text-xs !mb-0">
-            PENDING REPORT
+            PENDING UTILITY REPORT
           </CardSubHeader>
           <div className="size-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center border border-orange-100 shadow-xs">
             <MessageSquare className="size-5" />
