@@ -6,6 +6,7 @@ import { LayoutDashboard, Radar, Calendar, Archive, Presentation } from "lucide-
 import { supabase } from "@/supabase/util/supabase"
 import { getStoredViewTime, NOTIF_KEYS } from "@/lib/notifications/unreadTracker"
 import { fetchProvincialMonitoringUnreadCounts } from "@/lib/notifications/provincialMonitoringUnread.mjs"
+import { getProvincialReportViewedAt } from "@/lib/notifications/provincialReportSeen.mjs"
 
 export default function ProvincialNav() {
   const pathname = usePathname()
@@ -16,7 +17,7 @@ export default function ProvincialNav() {
   const fetchBadgeCounts = useCallback(async () => {
     const fetchId = ++latestFetch.current
     try {
-      const lastReportView = getStoredViewTime(NOTIF_KEYS.REPORT)
+      const lastReportView = await getProvincialReportViewedAt(supabase)
       const lastLguView = getStoredViewTime(NOTIF_KEYS.LGU)
       const lastRequestView = getStoredViewTime(NOTIF_KEYS.REQUEST)
 

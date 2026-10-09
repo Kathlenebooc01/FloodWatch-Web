@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { supabase } from "@/supabase/util/supabase"
 import { getStoredViewTime, setStoredViewTime, NOTIF_KEYS } from "@/lib/notifications/unreadTracker"
 import { fetchProvincialMonitoringUnreadCounts } from "@/lib/notifications/provincialMonitoringUnread.mjs"
+import { getProvincialReportViewedAt, markProvincialReportsSeen } from "@/lib/notifications/provincialReportSeen.mjs"
 
 const navLinks = [
   { name: "Weather", href: "/provincial-admin/monitoring", exact: true },
@@ -28,7 +29,7 @@ export default function MonitoringNavbar() {
   // Auto-mark as viewed when the user visits the respective tab
   useEffect(() => {
     if (isViewingReport) {
-      setStoredViewTime(NOTIF_KEYS.REPORT)
+      markProvincialReportsSeen(supabase).catch((err) => console.error("Error marking reports seen:", err))
     }
   }, [isViewingReport])
 
@@ -41,9 +42,10 @@ export default function MonitoringNavbar() {
   const fetchCounts = useCallback(async () => {
     const fetchId = ++latestFetch.current
     try {
+      const lastReportView = await getProvincialReportViewedAt(supabase)
       const counts = await fetchProvincialMonitoringUnreadCounts(
         supabase,
-        getStoredViewTime(NOTIF_KEYS.REPORT),
+        lastReportView,
         getStoredViewTime(NOTIF_KEYS.LGU)
       )
       if (fetchId !== latestFetch.current) return
@@ -65,6 +67,9 @@ export default function MonitoringNavbar() {
     const channel = supabase
       .channel("monitoring_tabs_indicator_v2")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "incident_report" }, () => {
+        if (isViewingReport) {
+          markProvincialReportsSeen(supabase).catch((err) => console.error("Error marking reports seen:", err))
+        }
         // New report submitted from app — instantly trigger count refresh
         fetchCounts()
       })
@@ -93,7 +98,7 @@ export default function MonitoringNavbar() {
       supabase.removeChannel(channel)
       clearInterval(pollInterval)
     }
-  }, [fetchCounts])
+  }, [fetchCounts, isViewingReport])
 
   return (
     <nav className="w-full overflow-x-auto no-scrollbar py-1">

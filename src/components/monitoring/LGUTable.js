@@ -660,6 +660,10 @@ export default function LGUTable() {
     const raw = status || "Pending";
     const s = raw.toLowerCase();
 
+    if (s === "acknowledged") {
+      return <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full text-xs font-bold tracking-wide inline-flex items-center gap-1.5 shadow-2xs"><BadgeCheck className="size-3.5" />Acknowledged</span>;
+    }
+
     if (s === "accepted" || s === "verified" || s === "approved") {
       return (
         <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full text-xs font-bold tracking-wide inline-flex items-center gap-1.5 shadow-2xs">
@@ -761,6 +765,32 @@ export default function LGUTable() {
       }
     } catch (err) {
       console.error("Unexpected error accepting report:", err);
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
+  const handleAcknowledgeReport = async () => {
+    if (!selectedReport?.parent_report_id || selectedReport.acknowledged_at || selectedReport.status?.toLowerCase() === "verified" || isSubmittingReport) return;
+    setIsSubmittingReport(true);
+    try {
+      const { data, error } = await supabase.rpc("acknowledge_report_update", {
+        update_id: selectedReport.report_id
+      });
+      if (error) throw error;
+      const updated = { ...selectedReport, acknowledged_at: data.acknowledged_at, acknowledged_by: data.acknowledged_by };
+      setSelectedReport(updated);
+      setReports((prev) => {
+        const next = prev.map((r) => r.report_id === updated.report_id ? updated : r);
+        cachedReports = next;
+        if (typeof window !== "undefined") {
+          try { sessionStorage.setItem("floodwatch_lgu_reports", JSON.stringify(next)); } catch (e) {}
+        }
+        return next;
+      });
+    } catch (err) {
+      console.error("Error acknowledging report update:", err);
+      alert(`Error acknowledging report update: ${err.message}`);
     } finally {
       setIsSubmittingReport(false);
     }
@@ -1156,7 +1186,7 @@ export default function LGUTable() {
                                   <TableData>
                                     {getStatusBadge(item.status)}
                                     {item.updates.length > 0 && (
-                                      <div className="text-[11px] text-gray-500 mt-1">Latest: {item.latestReport.status || "Pending"}</div>
+                                      <div className="text-[11px] text-gray-500 mt-1">Latest: {item.latestReport.status?.toLowerCase() === "pending_ai" ? "Pending" : item.latestReport.status || "Pending"}</div>
                                     )}
                                   </TableData>
                                 </TableRow>
@@ -1175,7 +1205,7 @@ export default function LGUTable() {
                                     <TableDataMuted className="text-xs truncate max-w-[180px]">{update.location_name}</TableDataMuted>
                                     <TableDataMuted className="text-xs whitespace-nowrap">{formatRelativeTime(update.created_at)}</TableDataMuted>
                                     <TableData className="text-xs">{renderPriority(update.priority_level)}</TableData>
-                                    <TableData>{getStatusBadge(update.status)}</TableData>
+                                    <TableData>{getStatusBadge(update.acknowledged_at ? "Acknowledged" : update.status)}</TableData>
                                   </TableRow>
                                 ))}
                                 {reportExpanded && item.updates.length === 0 && (
@@ -1398,7 +1428,9 @@ export default function LGUTable() {
 
                 {/* Status Badges Row */}
                 <div className="flex items-center gap-2 mt-3">
-                  {getStatusBadge(selectedReport.status)}
+                  {selectedReport.parent_report_id && selectedReport.acknowledged_at
+                    ? getStatusBadge("Acknowledged")
+                    : getStatusBadge(selectedReport.status)}
 
                   <span className="bg-orange-100 text-orange-800 font-black px-3 py-1 rounded-full text-xs uppercase tracking-wider">
                     {selectedReport.priority_level || "Medium"} Priority
@@ -1622,6 +1654,30 @@ export default function LGUTable() {
               {/* ── Footer Actions (Accept or Reject Buttons) ── */}
               <div className="p-6 pt-4 border-t border-gray-100 bg-gray-50/50 shrink-0 space-y-2.5">
                 {(() => {
+                  if (selectedReport.parent_report_id) {
+                    if (selectedReport.status?.toLowerCase() === "verified") {
+                      return (
+                        <div className="p-3.5 bg-emerald-50 text-emerald-800 border border-emerald-200 text-center font-bold text-sm rounded-2xl flex items-center justify-center gap-2">
+                          <BadgeCheck className="size-5" /> This update has been verified.
+                        </div>
+                      );
+                    }
+                    return selectedReport.acknowledged_at ? (
+                      <div className="p-3.5 bg-emerald-50 text-emerald-800 border border-emerald-200 text-center font-bold text-sm rounded-2xl flex items-center justify-center gap-2">
+                        <BadgeCheck className="size-5" /> Acknowledged
+                      </div>
+                    ) : (
+                      <button
+                        id="btn-acknowledge-report"
+                        onClick={handleAcknowledgeReport}
+                        disabled={isSubmittingReport}
+                        className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-sm shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+                      >
+                        {isSubmittingReport ? <Loader2 className="size-4.5 animate-spin" /> : <Check className="size-4.5 stroke-[3]" />}
+                        <span>Acknowledge Report</span>
+                      </button>
+                    );
+                  }
                   const st = (selectedReport.status || "").toLowerCase();
                   const isVerified = st === "accepted" || st === "verified" || st.includes("approved");
                   const isRejected = st === "rejected";
