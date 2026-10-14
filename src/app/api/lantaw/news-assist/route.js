@@ -3,9 +3,9 @@ import { logAiError, logAiSuccess } from '@/lib/logs/apiLogger'
 
 const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI
 const GEMINI_BACKUP_KEY = process.env.GEMINI_LANTAW_BACKUP_AI || process.env.GEMINI_LANTAW_AI
-const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-flash-latest'
-const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.8-flash'
-const TERTIARY_MODEL = 'gemini-flash-lite-latest'
+const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-3.1-flash-lite'
+const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.5-flash-lite'
+const TERTIARY_MODEL = process.env.GEMINI_LANTAW_THIRD_MODEL || 'gemini-3.1-flash-lite-preview'
 
 export const maxDuration = 60;
 

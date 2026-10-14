@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { useState, useEffect, useCallback } from "react"
 import { supabase } from "@/supabase/util/supabase"
 import { statusVariants } from "@/lib/domain-values.mjs"
-import { getStoredViewTime, setStoredViewTime, NOTIF_KEYS } from "@/lib/notifications/unreadTracker"
+import { getProvincialPageViewedAt, markProvincialPageSeen } from "@/lib/notifications/provincialPageSeen.mjs"
 import ToogleButton from "../button/ToogleButton"
 import ToogleButtonLayout from "../button/ToogleButtonLayout"
 
@@ -23,13 +23,13 @@ export default function NavUtil() {
 
   useEffect(() => {
     if (isViewingRequest) {
-      setStoredViewTime(NOTIF_KEYS.REQUEST)
+      markProvincialPageSeen(supabase, 'request').catch((err) => console.error("Error marking Request page seen:", err))
     }
   }, [isViewingRequest])
 
   const fetchPendingRequests = useCallback(async () => {
     try {
-      const lastRequestView = getStoredViewTime(NOTIF_KEYS.REQUEST)
+      const lastRequestView = await getProvincialPageViewedAt(supabase, 'request')
       let query = supabase
         .from('resource_requests')
         .select('*', { count: 'exact', head: true })
@@ -41,9 +41,8 @@ export default function NavUtil() {
 
       const { count, error } = await query
       
-      if (!error && count !== null && !isViewingRequest) {
-        setPendingRequestsCount(count)
-      }
+      if (error) throw error
+      setPendingRequestsCount(isViewingRequest ? 0 : (count ?? 0))
     } catch (err) {
       console.error("Error fetching pending requests for NavUtil:", err)
     }
@@ -82,12 +81,6 @@ export default function NavUtil() {
           <ToogleButton key={link.name} className={isActive ? "button-toogle-active" : ""}>
             <Link 
               href={link.href} 
-              onClick={() => {
-                if (link.badge) {
-                  setStoredViewTime(NOTIF_KEYS.REQUEST)
-                  setPendingRequestsCount(0)
-                }
-              }}
               className="w-full flex items-center justify-center gap-2"
             >
               <span>{link.name}</span>

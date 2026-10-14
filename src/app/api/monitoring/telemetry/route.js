@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isCurrentAirReading } from '@/lib/monitoring/airQualityFreshness';
+import { getLatestAirQuality } from '@/lib/monitoring/latestAirQuality.mjs';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.NEXT_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -24,13 +26,13 @@ export async function GET(request) {
       data: cachedData
     }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60'
+        'Cache-Control': 'no-store'
       }
     });
   }
 
   try {
-    const [munisRes, weatherRes, airRes] = await Promise.all([
+    const [munisRes, weatherRes] = await Promise.all([
       supabaseAdmin
         .from('municipality_or_city')
         .select('municipality_id, name, center_latitude, center_longitude, province_id'),
@@ -38,17 +40,13 @@ export async function GET(request) {
         .from('weather_telemetry')
         .select('*')
         .order('fetched_at', { ascending: false })
-        .limit(200),
-      supabaseAdmin
-        .from('air_quality')
-        .select('*')
-        .order('recorded_at', { ascending: false })
         .limit(200)
     ]);
 
+    if (munisRes.error) throw munisRes.error;
     const munis = munisRes.data || [];
     const weather = weatherRes.data || [];
-    const air = airRes.data || [];
+    const air = await getLatestAirQuality(supabaseAdmin, munis);
 
     const weatherMap = new Map();
     for (const w of weather) {
@@ -75,7 +73,8 @@ export async function GET(request) {
 
     const merged = munis.map((m) => {
       const w = weatherMap.get(m.municipality_id) || {};
-      const a = airMap.get(m.municipality_id) || {};
+      const latestAir = airMap.get(m.municipality_id) || {};
+      const a = latestAir;
 
       const lat = parseFloat(m.center_latitude);
       const lng = parseFloat(m.center_longitude);
@@ -110,8 +109,14 @@ export async function GET(request) {
         aqi: rawAqi,
         pm2_5: rawPm25 != null && rawPm25 !== '' ? Number(rawPm25) : null,
         pm10: rawPm10 != null && rawPm10 !== '' ? Number(rawPm10) : null,
+        so2: a.so2 ?? null,
+        no2: a.no2 ?? null,
+        o3: a.o3 ?? null,
+        co: a.co ?? null,
+        dominant_pollutant: a.dominant_pollutant ?? null,
         air_quality_status: a.status ?? null,
-        air_recorded_at: a.recorded_at ?? null,
+        air_recorded_at: latestAir.recorded_at ?? null,
+        air_data_current: isCurrentAirReading(a.recorded_at, now),
       };
     });
 
@@ -125,7 +130,7 @@ export async function GET(request) {
       data: merged
     }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60'
+        'Cache-Control': 'no-store'
       }
     });
   } catch (err) {

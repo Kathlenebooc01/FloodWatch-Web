@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { normalizeRole, ROLES, normalizeRequestStatus, ACTIVE_REQUEST_STATUSES, statusVariants, isHighUrgencyRequest } from '@/lib/domain-values.mjs';
 import { AnalysisError, generatePrioritization, validatePrioritization } from '@/lib/lantaw/gemini-prioritization.mjs';
+import { buildPrioritizationFallback } from '@/lib/lantaw/prioritization-fallback.mjs';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -122,11 +123,21 @@ Return strictly a valid JSON object matching this schema:
   ]
 }
 `;
-  const aiAnalysis = validatePrioritization(await generatePrioritization(prompt, {
-    apiKey: process.env.GEMINI_LANTAW_AI,
-    model: process.env.GEMINI_LANTAW_MODEL || 'gemini-3.1-flash-lite',
-    fallbackModel: process.env.GEMINI_LANTAW_FALLBACK_MODEL,
-  }), requestsToAnalyze);
+  let aiAnalysis;
+  try {
+    aiAnalysis = validatePrioritization(await generatePrioritization(prompt, {
+      apiKey: process.env.GEMINI_LANTAW_AI,
+      model: process.env.GEMINI_LANTAW_MODEL || 'gemini-3.1-flash-lite',
+      backupKey: process.env.GEMINI_LANTAW_BACKUP_AI,
+      fallbackModel: process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.5-flash-lite',
+      thirdKey: process.env.GEMINI_LANTAW_THIRD_AI,
+      thirdModel: process.env.GEMINI_LANTAW_THIRD_MODEL || 'gemini-3.1-flash-lite-preview',
+      validate: result => validatePrioritization(result, requestsToAnalyze),
+    }), requestsToAnalyze);
+  } catch (error) {
+    console.error('All AI prioritization providers failed:', error);
+    aiAnalysis = buildPrioritizationFallback(requestsToAnalyze, weatherData);
+  }
   return { ...aiAnalysis, weather_telemetry: weatherData, analyzed_at: new Date().toISOString(),
     total_requests_analyzed: requestsToAnalyze.length, total_active_requests: count ?? requestsToAnalyze.length };
 }

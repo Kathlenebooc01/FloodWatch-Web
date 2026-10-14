@@ -4,8 +4,8 @@ import { logAiError } from '@/lib/logs/apiLogger';
 const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI;
 const GEMINI_BACKUP_KEY = process.env.GEMINI_LANTAW_BACKUP_AI || process.env.GEMINI_LANTAW_AI;
 const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-3.1-flash-lite';
-const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-flash-latest';
-const TERTIARY_MODEL = 'gemini-3.8-flash';
+const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.5-flash-lite';
+const TERTIARY_MODEL = process.env.GEMINI_LANTAW_THIRD_MODEL || 'gemini-3.1-flash-lite-preview';
 
 const INVENTORY_EXTRACTION_PROMPT = `
 You are Lantaw AI, a specialized data extraction assistant for the FloodWatch Disaster & Emergency Management Platform.

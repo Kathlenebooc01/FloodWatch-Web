@@ -12,7 +12,9 @@ import CardSubHeader from '../cards/CardSubHeader';
 import CardBasedText from '../cards/CardBasedText';
 import SearchInput from '@/components/forms/SearchInput';
 import MapFilterDropdown from './MapFilterDropdown';
-import { getCachedMonitoringData, setCachedMonitoringData } from '@/lib/cache/monitoringCache';
+import { setCachedMonitoringData } from '@/lib/cache/monitoringCache';
+import { getSelectedAirQuality } from '@/lib/monitoring/latestAirQuality.mjs';
+import { aqiLevel } from '@/lib/monitoring/aqiClassification.mjs';
 
 // ─── USA AQI Layer Style Definitions for GPU Canvas Rendering ────────────────
 const pinCircleLayer = {
@@ -161,43 +163,7 @@ export const USA_AQI_LEGEND = [
 export const OPENWEATHER_AQI_LEGEND = USA_AQI_LEGEND;
 
 export const getUsaAqiLevel = (aqi, pm2_5, dbStatus) => {
-  // 1. Check if dbStatus matches any qualitative label
-  if (dbStatus && typeof dbStatus === 'string') {
-    const s = dbStatus.trim().toLowerCase();
-    if (s.includes('very haz') || s.includes('very_haz')) return 7;
-    if (s.includes('haz')) return 6;
-    if (s.includes('very unh') || s.includes('very_unh')) return 5;
-    if (s.includes('sensitive') || s.includes('sensitive groups')) return 3;
-    if (s.includes('unh')) return 4;
-    if (s.includes('mod')) return 2;
-    if (s.includes('good')) return 1;
-  }
-
-  // 2. Check numeric AQI (USA standard 0-1000)
-  if (aqi != null && !isNaN(aqi) && aqi !== '') {
-    const a = Number(aqi);
-    if (a <= 50) return 1;
-    if (a <= 100) return 2;
-    if (a <= 150) return 3;
-    if (a <= 200) return 4;
-    if (a <= 300) return 5;
-    if (a <= 500) return 6;
-    return 7;
-  }
-
-  // 3. Fallback to PM2.5 (EPA Breakpoints)
-  if (pm2_5 != null && !isNaN(pm2_5) && pm2_5 !== '') {
-    const p = Number(pm2_5);
-    if (p <= 12.0) return 1;
-    if (p <= 35.4) return 2;
-    if (p <= 55.4) return 3;
-    if (p <= 150.4) return 4;
-    if (p <= 250.4) return 5;
-    if (p <= 500.4) return 6;
-    return 7;
-  }
-
-  return 0; // No Data
+  return aqiLevel(aqi, dbStatus);
 };
 
 export const getOpenWeatherAqiCategory = (aqi, pm2_5, dbStatus) => {
@@ -210,14 +176,14 @@ export const getUsaAqiDetails = (aqi, pm2_5, dbStatus) => {
     const item = USA_AQI_LEGEND[level - 1];
     return {
       ...item,
-      label: dbStatus || item.label,
+      label: aqi != null && aqi !== '' && Number.isFinite(Number(aqi)) ? item.label : dbStatus || item.label,
       level,
     };
   }
   return {
     level: 0,
     range: 'N/A',
-    label: dbStatus || 'No Data',
+    label: dbStatus || 'No Data Available',
     color: '#3b82f6',
     colorName: 'Blue',
     bg: 'bg-blue-50',
@@ -242,8 +208,9 @@ const Row = ({ icon, label, value, unit = '' }) => (
 );
 
 export default function AirQualityMap({ isFullscreen = false }) {
-  const [airData, setAirData] = useState(() => getCachedMonitoringData('airData') || []);
+  const [airData, setAirData] = useState([]);
   const [selectedMuni, setSelectedMuni] = useState(null);
+  const [airUpdateError, setAirUpdateError] = useState(null);
   const [cursor, setCursor] = useState('auto');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('ALL');
@@ -251,18 +218,19 @@ export default function AirQualityMap({ isFullscreen = false }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Fetch directly from main tables: municipality_or_city, air_quality, weather_telemetry
+    // Fetch the selected air-quality observation for each municipality.
     const fetchData = async () => {
       // 1. Fast load from telemetry API
       try {
-        const res = await fetch('/api/monitoring/telemetry');
+        const res = await fetch('/api/monitoring/air', { cache: 'no-store' });
         if (res.ok) {
           const json = await res.json();
-          if (Array.isArray(json?.data) && json.data.length > 0) {
+          if (Array.isArray(json?.data)) {
             if (!isMounted) return;
+            setAirUpdateError(json.air_update_error || null);
             const mapped = json.data.map(muni => {
               const numPm25 = muni.pm2_5 != null ? Number(muni.pm2_5) : null;
-              const aqiCat = getUsaAqiLevel(muni.aqi, numPm25, muni.air_quality_status);
+              const aqiCat = getUsaAqiDetails(muni.aqi, numPm25, muni.air_quality_status);
               return {
                 ...muni,
                 aqi_level: aqiCat.label,
@@ -277,7 +245,7 @@ export default function AirQualityMap({ isFullscreen = false }) {
             setSelectedMuni((prev) => {
               if (!prev) return null;
               const updated = mapped.find((m) => String(m.municipality_id) === String(prev.municipality_id));
-              return updated || prev;
+              return updated || null;
             });
             return;
           }
@@ -288,16 +256,17 @@ export default function AirQualityMap({ isFullscreen = false }) {
 
       // 2. Direct Supabase fallback
       try {
-        const [munisRes, airRes, weatherRes] = await Promise.all([
+        const [munisRes, weatherRes] = await Promise.all([
           supabase.from('municipality_or_city').select('*'),
-          supabase.from('air_quality').select('*').order('recorded_at', { ascending: false }).limit(100),
           supabase.from('weather_telemetry').select('*').order('fetched_at', { ascending: false }).limit(100)
         ]);
 
         if (!isMounted) return;
 
         const munis = munisRes.data || [];
-        const airRecords = airRes.data || [];
+        if (munisRes.error) throw munisRes.error;
+        const airRecords = await getSelectedAirQuality(supabase, munis);
+        if (!isMounted) return;
         const weatherRecords = weatherRes.data || [];
 
         const mergedData = munis.map((muni) => {
@@ -311,7 +280,7 @@ export default function AirQualityMap({ isFullscreen = false }) {
           const lat = parseFloat(latVal);
           const lng = parseFloat(lngVal);
 
-          // Resolve Pollutants from OpenWeather / USA Schema
+          // Keep pollutant values from the same air_quality row.
           const rawPm25 = latestAir.pm2_5 ?? latestAir['pm2.5'] ?? latestAir.pm25 ?? latestAir.pm_2_5 ?? null;
           const rawPm10 = latestAir.pm10 ?? latestAir.pm_10 ?? null;
           const rawAqi = latestAir.aqi != null ? Number(latestAir.aqi) : null;
@@ -340,8 +309,12 @@ export default function AirQualityMap({ isFullscreen = false }) {
             o3: rawO3,
             co: rawCo,
             dominant_pollutant: latestAir.dominant_pollutant ?? null,
-            air_quality_status: latestAir.status ?? null,
+            air_quality_status: latestAir.status?.split(' | ')[0] ?? null,
+            air_source: latestAir.status?.includes('OpenAQ:6455462;') ? 'OpenAQ / Clarity' : null,
+            air_station: latestAir.status?.includes('OpenAQ:6455462;') ? 'Lapu-Lapu City' : null,
+            air_aqi_method: latestAir.status?.includes('OpenAQ:6455462;') ? 'PM2.5 US AQI (NowCast)' : null,
             air_recorded_at: latestAir.recorded_at ?? null,
+            air_data_current: false,
 
             // Observation feeds fields from weather_telemetry
             temperature: latestWeather.temperature ?? null,
@@ -362,7 +335,7 @@ export default function AirQualityMap({ isFullscreen = false }) {
         setSelectedMuni((prev) => {
           if (!prev) return null;
           const updated = mergedData.find((m) => String(m.municipality_id) === String(prev.municipality_id));
-          return updated || prev;
+          return updated || null;
         });
       } catch (err) {
         console.error("Error fetching AirQualityMap data:", err);
@@ -576,7 +549,7 @@ export default function AirQualityMap({ isFullscreen = false }) {
         <div
           className="absolute z-40 flex flex-col pointer-events-auto transition-all duration-300 inset-x-3 bottom-3 top-auto max-h-[60vh] sm:inset-x-auto sm:left-4 sm:top-20 sm:bottom-auto sm:w-[320px] sm:max-h-[calc(100vh-100px)] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
         >
-          <GeneralCard className="p-0 border-none shadow-none">
+          <GeneralCard className="p-0 border-none shadow-none overflow-y-auto">
             
             {/* Header with Close Button */}
             <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/50">
@@ -585,7 +558,7 @@ export default function AirQualityMap({ isFullscreen = false }) {
                   {selectedMuni.municipality_name}
                 </CardHeader>
                 <CardBasedText className="text-[11px] text-gray-400 font-medium">
-                  USA AQI Air Quality Telemetry
+                  September 12 Air Quality Snapshot
                 </CardBasedText>
               </div>
               <button
@@ -603,13 +576,13 @@ export default function AirQualityMap({ isFullscreen = false }) {
               {/* Primary USA AQI Alert Card */}
               {activeDetails && (
                 <div className={`p-4 rounded-xl border flex items-center justify-between ${activeDetails.bg} border-gray-100`}>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className="p-2 rounded-lg bg-white shadow-xs">
                       <Leaf className="size-5" style={{ color: activeDetails.color }} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Health Concern</span>
-                      <h4 className="text-sm sm:text-base font-extrabold text-gray-800 leading-tight">
+                      <h4 className="text-sm sm:text-base font-extrabold text-gray-800 leading-tight break-words">
                         {activeDetails.label}
                       </h4>
                       {selectedMuni.dominant_pollutant && (
@@ -619,7 +592,7 @@ export default function AirQualityMap({ isFullscreen = false }) {
                       )}
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <span className="text-2xl font-black" style={{ color: activeDetails.color }}>
                       {selectedMuni.aqi != null && selectedMuni.aqi !== '' ? selectedMuni.aqi : '—'}
                     </span>
@@ -650,6 +623,13 @@ export default function AirQualityMap({ isFullscreen = false }) {
                 <Row icon={<Wind className="size-4 text-teal-500" />} label="Wind Speed" value={selectedMuni.wind_speed} unit=" m/s" />
               </div>
 
+              {selectedMuni.air_source && (
+                <p className="text-[11px] text-gray-500">
+                  Sensor: {selectedMuni.air_station}. Source: <a href="https://explore.openaq.org/locations/6455462" target="_blank" rel="noreferrer" className="underline">{selectedMuni.air_source}</a>.
+                  {' '}{selectedMuni.air_aqi_method}. PM2.5 is from this observation.
+                </p>
+              )}
+              {airUpdateError && <p role="status" className="text-[11px] text-gray-500">Air update unavailable. Showing the last saved reading.</p>}
               {/* Timestamp */}
               <div className="pt-2 border-t border-gray-100 text-[11px] text-gray-400 flex items-center justify-between">
                 <span className="flex items-center gap-1">
@@ -657,10 +637,8 @@ export default function AirQualityMap({ isFullscreen = false }) {
                 </span>
                 <span className="font-semibold text-gray-600">
                   {selectedMuni.air_recorded_at
-                    ? new Date(selectedMuni.air_recorded_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
-                    : selectedMuni.fetched_at
-                    ? new Date(selectedMuni.fetched_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
-                    : "Realtime"}
+                    ? new Date(selectedMuni.air_recorded_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' })
+                    : "No observation date"}
                 </span>
               </div>
             </div>

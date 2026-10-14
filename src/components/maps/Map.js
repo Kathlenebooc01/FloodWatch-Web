@@ -14,6 +14,8 @@ import WeatherMap from './WeatherMap';
 import SearchInput from '@/components/forms/SearchInput';
 import MapFilterDropdown from './MapFilterDropdown';
 import { getCachedMonitoringData, setCachedMonitoringData } from '@/lib/cache/monitoringCache';
+import { isCurrentAirReading } from '@/lib/monitoring/airQualityFreshness';
+import { getLatestAirQuality } from '@/lib/monitoring/latestAirQuality.mjs';
 import { trackApiUsage } from '@/lib/logs/clientTracker';
 
 // ─── Layer Style Definitions for GPU Canvas Rendering ──────────────────────
@@ -163,7 +165,11 @@ export default function FloodWatchMap({ activeTab: externalTab, onTabChange: ext
   const activeTab = externalTab !== undefined ? externalTab : internalTab;
   const handleTabChange = externalOnTabChange || setInternalTab;
 
-  const [weatherData, setWeatherData] = useState(() => getCachedMonitoringData('weatherData') || []);
+  const [weatherData, setWeatherData] = useState(() =>
+    (getCachedMonitoringData('weatherData') || []).map((item) =>
+      ({ ...item, air_data_current: isCurrentAirReading(item.air_recorded_at) })
+    )
+  );
   const [selectedMuni, setSelectedMuni] = useState(null);
   const [cursor, setCursor] = useState('auto');
   const [searchQuery, setSearchQuery] = useState('');
@@ -195,15 +201,15 @@ export default function FloodWatchMap({ activeTab: externalTab, onTabChange: ext
 
       // 2. Fallback: Direct table queries
       try {
-        const [munisRes, weatherRes, airRes] = await Promise.all([
+        const [munisRes, weatherRes] = await Promise.all([
           supabase.from('municipality_or_city').select('*'),
-          supabase.from('weather_telemetry').select('*').order('fetched_at', { ascending: false }).limit(100),
-          supabase.from('air_quality').select('*').order('recorded_at', { ascending: false }).limit(100)
+          supabase.from('weather_telemetry').select('*').order('fetched_at', { ascending: false }).limit(100)
         ]);
 
         const munis = munisRes.data || [];
+        if (munisRes.error) throw munisRes.error;
         const weatherRecords = weatherRes.data || [];
-        const airRecords = airRes.data || [];
+        const airRecords = await getLatestAirQuality(supabase, munis);
 
         const mergedData = munis.map((muni) => {
           const mId = muni.municipality_id;
@@ -244,6 +250,7 @@ export default function FloodWatchMap({ activeTab: externalTab, onTabChange: ext
             pm10: rawPm10 != null && rawPm10 !== '' ? Number(rawPm10) : null,
             air_quality_status: latestAir.status ?? null,
             air_recorded_at: latestAir.recorded_at ?? null,
+            air_data_current: isCurrentAirReading(latestAir.recorded_at),
           };
         });
 
@@ -386,11 +393,6 @@ export default function FloodWatchMap({ activeTab: externalTab, onTabChange: ext
 
   const aqiMeta = selectedMuni ? getAqiMeta(selectedMuni.aqi) : null;
 
-  // Immediately display Observation Feeds map when the tab toggle switch is flipped
-  if (activeTab === 'Observation Feeds') {
-    return <WeatherMap activeTab={activeTab} onTabChange={handleTabChange} isFullscreen={isFullscreen} />;
-  }
-
   const handleMapLoad = useCallback(() => {
     const pagePath = typeof window !== 'undefined' ? window.location.pathname : '/map';
     trackApiUsage({
@@ -408,6 +410,11 @@ export default function FloodWatchMap({ activeTab: externalTab, onTabChange: ext
       isError: true
     });
   }, []);
+
+  // Keep every hook above the conditional tab return.
+  if (activeTab === 'Observation Feeds') {
+    return <WeatherMap activeTab={activeTab} onTabChange={handleTabChange} isFullscreen={isFullscreen} />;
+  }
 
   return (
     <div className={`relative w-full ${isFullscreen ? 'h-screen rounded-none border-0 shadow-none' : 'h-screen min-h-[600px] rounded-2xl shadow-sm'} overflow-hidden`}>
@@ -569,6 +576,7 @@ export default function FloodWatchMap({ activeTab: externalTab, onTabChange: ext
                 <CardSubHeader>
                   Air Quality
                 </CardSubHeader>
+
 
                 {selectedMuni.aqi != null ? (
                   <>

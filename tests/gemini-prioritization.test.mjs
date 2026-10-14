@@ -54,3 +54,17 @@ test('queue identity and supplies come from the database; hallucinated IDs and i
   const score = valid(); score.prioritized_queue[0].urgency_score = 200;
   assert.throws(() => validatePrioritization(score, requests));
 });
+
+test('three provider tiers use their configured keys and recover from invalid JSON', async () => {
+  const attempts = [];
+  const responses = [busy(503), { ok: true, async json() { return { candidates: [{ content: { parts: [{ text: '{bad' }] } }] }; } }, ok(valid())];
+  const result = await generatePrioritization('prompt', {
+    apiKey: 'main-key', model: 'main-model', backupKey: 'backup-key', fallbackModel: 'backup-model',
+    thirdKey: 'third-key', thirdModel: 'third-model', wait: async () => {},
+    validate: value => validatePrioritization(value, requests),
+    fetchImpl: async (url, options) => { attempts.push({ url, key: options.headers['x-goog-api-key'] }); return responses.shift(); },
+  });
+  assert.deepEqual(attempts.map(({ key }) => key), ['main-key', 'backup-key', 'third-key']);
+  assert.match(attempts[2].url, /third-model/);
+  assert.equal(result.prioritized_queue[0].request_id, 'full-uuid');
+});

@@ -7,7 +7,7 @@ export async function generateChatAnswer(prompt, { model, apiKey, backupKey, bac
   const attempts = [
     { model, key: apiKey || backupKey || thirdKey },
     { model: backupModel || 'gemini-3.5-flash-lite', key: backupKey || apiKey || thirdKey },
-    { model: thirdModel || 'gemini-3.8-flash', key: thirdKey || backupKey || apiKey },
+    { model: thirdModel || 'gemini-3.1-flash-lite-preview', key: thirdKey || backupKey || apiKey },
   ].filter((attempt, index, all) => attempt.model && attempt.key &&
     all.findIndex(other => other.model === attempt.model && other.key === attempt.key) === index);
   for (let index = 0; index < attempts.length; index++) {

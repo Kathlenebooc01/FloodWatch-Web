@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { LayoutDashboard, Radar, Calendar, Archive, Presentation } from "lucide-react"
 import { supabase } from "@/supabase/util/supabase"
-import { getStoredViewTime, NOTIF_KEYS } from "@/lib/notifications/unreadTracker"
+import { getProvincialPageViewedAt } from "@/lib/notifications/provincialPageSeen.mjs"
 import { fetchProvincialMonitoringUnreadCounts } from "@/lib/notifications/provincialMonitoringUnread.mjs"
 import { getProvincialReportViewedAt } from "@/lib/notifications/provincialReportSeen.mjs"
 
@@ -17,9 +17,11 @@ export default function ProvincialNav() {
   const fetchBadgeCounts = useCallback(async () => {
     const fetchId = ++latestFetch.current
     try {
-      const lastReportView = await getProvincialReportViewedAt(supabase)
-      const lastLguView = getStoredViewTime(NOTIF_KEYS.LGU)
-      const lastRequestView = getStoredViewTime(NOTIF_KEYS.REQUEST)
+      const [lastReportView, lastLguView, lastRequestView] = await Promise.all([
+        getProvincialReportViewedAt(supabase),
+        getProvincialPageViewedAt(supabase, 'lgu'),
+        getProvincialPageViewedAt(supabase, 'request'),
+      ])
 
       let reqQuery = supabase
         .from("resource_requests")

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import * as domain from '../src/lib/domain-values.mjs';
 import { AnalysisError, validatePrioritization } from '../src/lib/lantaw/gemini-prioritization.mjs';
+import { buildPrioritizationFallback } from '../src/lib/lantaw/prioritization-fallback.mjs';
 const require = createRequire(import.meta.url);
 const { transform, loadBindings } = require('next/dist/build/swc');
 await loadBindings();
@@ -34,6 +35,7 @@ function setup({ role = 'national_admin', rows = [], queryError = null, profileE
   new Function('require', 'module', 'exports', 'fetch', 'process', code)(name => {
     if (name === 'next/server') return next;
     if (name === '@supabase/supabase-js') return { createClient: () => db };
+    if (name.includes('prioritization-fallback')) return { buildPrioritizationFallback };
     return name.includes('domain-values') ? domain : helpers;
   }, compiledModule, compiledModule.exports, () => { throw new Error('Unexpected weather network request'); },
   { env: { NEXT_PUBLIC_SUPABASE_URL: 'https://test.invalid', NEXT_SERVICE_ROLE_KEY: 'test', GEMINI_LANTAW_AI: 'test' } });
@@ -64,14 +66,15 @@ test('empty database returns an empty result without sample requests or AI calls
   assert.deepEqual(res.body.data.prioritized_queue, []);
   assert.equal(route.prompts.length, 0);
 });
-test('database errors and exhausted provider retries return recoverable 503 responses', async () => {
+test('database errors return 503; exhausted AI providers yield a labeled database fallback', async () => {
   const database = setup({ queryError: { message: 'database unavailable' } });
   assert.equal((await database.POST(request())).status, 503);
   assert.equal(database.prompts.length, 0);
   const provider = setup({ rows: [{ request_id: 'real-id', status: 'Pending' }], generator: () => { throw new AnalysisError('AI is busy', 503); } });
   const res = await provider.POST(request());
-  assert.equal(res.status, 503);
-  assert.equal(res.headers['Retry-After'], '10');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.data.analysis_source, 'database-fallback');
+  assert.equal(res.body.data.prioritized_queue[0].request_id, 'real-id');
 });
 test('real request IDs and supplies are retained and missing weather is explicitly unavailable', async () => {
   const route = setup({ rows: [{ request_id: 'complete-real-id', status: 'pending', request_reason: 'HIGH Urgency Request',

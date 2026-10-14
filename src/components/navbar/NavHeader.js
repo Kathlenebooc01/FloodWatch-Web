@@ -8,27 +8,44 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { supabase } from "@/supabase/util/supabase"
 import { ROLES } from "@/lib/domain-values.mjs"
+import { getProvincialPageViewedAt, markProvincialPageSeen } from "@/lib/notifications/provincialPageSeen.mjs"
 
 export default function NavHeader() {
   const pathname = usePathname()
   const basePath = pathname?.startsWith('/provincial-admin') ? '/provincial-admin' : '/national-admin'
   const role = basePath === '/provincial-admin' ? ROLES.PROVINCIAL_ADMIN : ROLES.NATIONAL_ADMIN
   const [hasUnreadNotifs, setHasUnreadNotifs] = useState(false)
+  const isViewingNotifications = pathname?.startsWith(`${basePath}/notification`)
+
+  useEffect(() => {
+    if (role === ROLES.PROVINCIAL_ADMIN && isViewingNotifications) {
+      markProvincialPageSeen(supabase, 'notification').catch((err) => console.error('Error marking notifications page seen:', err))
+    }
+  }, [role, isViewingNotifications])
 
   const fetchUnreadNotifsStatus = useCallback(async () => {
-    const { count, error } = await supabase
+    const lastView = role === ROLES.PROVINCIAL_ADMIN
+      ? await getProvincialPageViewedAt(supabase, 'notification')
+      : null
+    let query = supabase
       .from('notifications')
       .select('*', { count: 'exact', head: true })
       .in('target_role', ['all', role])
-      .eq('is_read', false)
+    if (role === ROLES.PROVINCIAL_ADMIN) {
+      if (lastView) query = query.gt('created_at', lastView)
+    } else {
+      query = query.eq('is_read', false)
+    }
+    const { count, error } = await query
 
     if (!error) {
-      setHasUnreadNotifs(count > 0)
+      setHasUnreadNotifs((role !== ROLES.PROVINCIAL_ADMIN || !isViewingNotifications) && count > 0)
     }
-  }, [role])
+  }, [role, isViewingNotifications])
 
   useEffect(() => {
     const initialFetch = setTimeout(() => fetchUnreadNotifsStatus(), 0)
+    window.addEventListener('fw_notification_viewed', fetchUnreadNotifsStatus)
 
     const notifChannel = supabase
       .channel('navheader_notifications')
@@ -39,6 +56,7 @@ export default function NavHeader() {
 
     return () => {
       clearTimeout(initialFetch)
+      window.removeEventListener('fw_notification_viewed', fetchUnreadNotifsStatus)
       supabase.removeChannel(notifChannel)
     }
   }, [fetchUnreadNotifsStatus])

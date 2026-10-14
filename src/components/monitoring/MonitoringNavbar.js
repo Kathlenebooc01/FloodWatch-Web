@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { supabase } from "@/supabase/util/supabase"
-import { getStoredViewTime, setStoredViewTime, NOTIF_KEYS } from "@/lib/notifications/unreadTracker"
+import { getProvincialPageViewedAt, markProvincialPageSeen } from "@/lib/notifications/provincialPageSeen.mjs"
 import { fetchProvincialMonitoringUnreadCounts } from "@/lib/notifications/provincialMonitoringUnread.mjs"
 import { getProvincialReportViewedAt, markProvincialReportsSeen } from "@/lib/notifications/provincialReportSeen.mjs"
 
@@ -35,18 +35,21 @@ export default function MonitoringNavbar() {
 
   useEffect(() => {
     if (isViewingLgu) {
-      setStoredViewTime(NOTIF_KEYS.LGU)
+      markProvincialPageSeen(supabase, 'lgu').catch((err) => console.error("Error marking LGU page seen:", err))
     }
   }, [isViewingLgu])
 
   const fetchCounts = useCallback(async () => {
     const fetchId = ++latestFetch.current
     try {
-      const lastReportView = await getProvincialReportViewedAt(supabase)
+      const [lastReportView, lastLguView] = await Promise.all([
+        getProvincialReportViewedAt(supabase),
+        getProvincialPageViewedAt(supabase, 'lgu'),
+      ])
       const counts = await fetchProvincialMonitoringUnreadCounts(
         supabase,
         lastReportView,
-        getStoredViewTime(NOTIF_KEYS.LGU)
+        lastLguView
       )
       if (fetchId !== latestFetch.current) return
       setReportCount(isViewingReport ? 0 : counts.reportCount)
@@ -67,9 +70,6 @@ export default function MonitoringNavbar() {
     const channel = supabase
       .channel("monitoring_tabs_indicator_v2")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "incident_report" }, () => {
-        if (isViewingReport) {
-          markProvincialReportsSeen(supabase).catch((err) => console.error("Error marking reports seen:", err))
-        }
         // New report submitted from app — instantly trigger count refresh
         fetchCounts()
       })
@@ -98,7 +98,7 @@ export default function MonitoringNavbar() {
       supabase.removeChannel(channel)
       clearInterval(pollInterval)
     }
-  }, [fetchCounts, isViewingReport])
+  }, [fetchCounts])
 
   return (
     <nav className="w-full overflow-x-auto no-scrollbar py-1">
