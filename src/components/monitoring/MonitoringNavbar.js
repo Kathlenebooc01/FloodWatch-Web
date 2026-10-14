@@ -7,6 +7,7 @@ import { supabase } from "@/supabase/util/supabase"
 import { getProvincialPageViewedAt, markProvincialPageSeen } from "@/lib/notifications/provincialPageSeen.mjs"
 import { fetchProvincialMonitoringUnreadCounts } from "@/lib/notifications/provincialMonitoringUnread.mjs"
 import { getProvincialReportViewedAt, markProvincialReportsSeen } from "@/lib/notifications/provincialReportSeen.mjs"
+import { ensureFreshSession } from "@/lib/auth/ensureFreshSession.mjs"
 
 const navLinks = [
   { name: "Weather", href: "/provincial-admin/monitoring", exact: true },
@@ -29,19 +30,26 @@ export default function MonitoringNavbar() {
   // Auto-mark as viewed when the user visits the respective tab
   useEffect(() => {
     if (isViewingReport) {
-      markProvincialReportsSeen(supabase).catch((err) => console.error("Error marking reports seen:", err))
+      ensureFreshSession(supabase).then(ready => ready && markProvincialReportsSeen(supabase))
+        .catch((err) => console.error("Error marking reports seen:", err))
     }
   }, [isViewingReport])
 
   useEffect(() => {
     if (isViewingLgu) {
-      markProvincialPageSeen(supabase, 'lgu').catch((err) => console.error("Error marking LGU page seen:", err))
+      ensureFreshSession(supabase).then(ready => ready && markProvincialPageSeen(supabase, 'lgu'))
+        .catch((err) => console.error("Error marking LGU page seen:", err))
     }
   }, [isViewingLgu])
 
   const fetchCounts = useCallback(async () => {
     const fetchId = ++latestFetch.current
     try {
+      if (!await ensureFreshSession(supabase)) {
+        setReportCount(0)
+        setLguCount(0)
+        return
+      }
       const [lastReportView, lastLguView] = await Promise.all([
         getProvincialReportViewedAt(supabase),
         getProvincialPageViewedAt(supabase, 'lgu'),

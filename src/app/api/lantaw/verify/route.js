@@ -1,14 +1,14 @@
 import { after, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { logAiError, logAiSuccess } from '@/lib/logs/apiLogger';
-import { generateChatAnswer } from '@/lib/lantaw/chat-provider.mjs';
+import { assessVerification, loadVerificationImage } from '@/lib/lantaw/id-verification.mjs';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.NEXT_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI;
-const GEMINI_BACKUP_KEY = process.env.GEMINI_LANTAW_BACKUP_AI || process.env.GEMINI_LANTAW_AI;
+const GEMINI_BACKUP_KEY = process.env.GEMINI_LANTAW_BACKUP_AI;
 const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-3.1-flash-lite';
-const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.1-flash-lite';
+const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.5-flash-lite';
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -37,18 +37,23 @@ export async function POST(request) {
       return NextResponse.json({ error: msg }, { status: 503 });
     }
 
+    if (!id_image_url) return NextResponse.json({ error: 'No ID image was submitted for analysis.' }, { status: 422 });
+    const [idImage, selfieImage] = await Promise.all([
+      loadVerificationImage(id_image_url, SUPABASE_URL, SUPABASE_SERVICE_KEY),
+      loadVerificationImage(selfie_url, SUPABASE_URL, SUPABASE_SERVICE_KEY),
+    ]);
     const prompt = `
 You are Lantaw AI, the intelligent verification engine for the FloodWatch Disaster Management Platform.
 Evaluate this citizen identity verification submission:
 - User: ${userName || user_id || 'Citizen'}
 - Claimed ID Type: ${id_type || 'Government ID'}
-- ID Document Attached: ${id_image_url ? 'Yes (' + id_image_url + ')' : 'No'}
-- Biometric Selfie Attached: ${selfie_url ? 'Yes (' + selfie_url + ')' : 'No'}
+- ID Document Attached: Yes, in the next image.
+- Selfie Attached: ${selfieImage ? 'Yes, in the final image.' : 'No'}
 
 Analyze the submission according to Philippine government-issued ID standards and biometric fraud prevention guidelines:
-1. Determine if the document format and provided credentials are plausible and valid.
-2. Estimate a confidence score between 75 and 99% if valid (or below 50% if suspicious/missing).
-3. Provide a concise, professional 1-2 sentence assessment insight.
+1. Inspect the actual ID image for legibility and plausible document details. If a selfie is attached, compare only visible facial features; do not claim biometric certainty.
+2. If images are blurry, incomplete, or inconclusive, flag for manual review. Never claim authenticity from appearance alone.
+3. Provide a confidence score from 0 to 100 and a concise assessment explaining what is visible and any uncertainty.
 
 Respond STRICTLY with a valid JSON object only:
 {
@@ -58,28 +63,10 @@ Respond STRICTLY with a valid JSON object only:
 }
 `;
 
-    const rawResponse = await generateChatAnswer(prompt, {
-      model: PRIMARY_MODEL,
-      apiKey: GEMINI_API_KEY,
-      backupKey: GEMINI_BACKUP_KEY,
-      backupModel: BACKUP_MODEL,
-      json: true,
-      maxOutputTokens: 256,
-    });
-
-    let parsed = null;
-    try {
-      const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0]);
-      }
-    } catch (e) {
-      console.error("Failed to parse Gemini verification JSON:", e);
-    }
-
-    if (!parsed || typeof parsed.ai_is_valid !== 'boolean' || !Number.isFinite(Number(parsed.ai_confidence_score)) || typeof parsed.ai_insight !== 'string') {
-      return NextResponse.json({ error: 'AI analysis did not return a valid assessment' }, { status: 502 });
-    }
+    const parsed = await assessVerification(
+      [{ text: prompt }, idImage, ...(selfieImage ? [selfieImage] : [])],
+      { primaryKey: GEMINI_API_KEY, primaryModel: PRIMARY_MODEL, backupKey: GEMINI_BACKUP_KEY, backupModel: BACKUP_MODEL },
+    );
 
     const latency = Date.now() - startTime;
     const targetUser = userName || (user_id ? String(user_id).slice(0, 8) : 'User');

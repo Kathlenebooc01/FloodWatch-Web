@@ -16,6 +16,7 @@ import SideModal from "@/components/Modal/SideModal"
 import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
 import TablePagination from "@/components/table/TablePagination"
 import { supabase } from "@/supabase/util/supabase"
+import { ensureFreshSession } from "@/lib/auth/ensureFreshSession.mjs"
 import { buildReportHierarchy, fetchAllIncidentReports } from "@/lib/situational-report-hierarchy.mjs"
 import { getIncidentCoordinates } from "@/lib/reports/incidentCoordinates.mjs"
 import { hasNewReports, newestReportTimestamp } from "@/lib/notifications/reportSeen.mjs"
@@ -387,6 +388,10 @@ export default function LGUTable() {
 
     const fetchAllData = async () => {
       try {
+        if (!await ensureFreshSession(supabase)) {
+          if (isMounted) setReportFetchError("Session expired. Please sign in again.");
+          return;
+        }
         const [repRes, disRes] = await Promise.all([
           fetchAllIncidentReports(supabase),
           supabase
@@ -465,17 +470,18 @@ export default function LGUTable() {
           })
         ];
 
-        cachedReports = processedReports;
+        const timeSinceAction = Date.now() - lastActionRef.current;
+        if (timeSinceAction > 5000) cachedReports = processedReports;
         cachedDistressSignals = combinedDistress;
 
         if (typeof window !== "undefined") {
           try {
-            sessionStorage.setItem("floodwatch_lgu_reports", JSON.stringify(processedReports));
+            if (timeSinceAction > 5000) sessionStorage.setItem("floodwatch_lgu_reports", JSON.stringify(processedReports));
             sessionStorage.setItem("floodwatch_lgu_distress", JSON.stringify(combinedDistress));
           } catch (e) {}
         }
 
-        setReports(processedReports);
+        if (timeSinceAction > 5000) setReports(processedReports);
         setReportsLoaded(true);
         setReportLoadVersion(version => version + 1);
         setDistressSignals(combinedDistress);
@@ -498,7 +504,6 @@ export default function LGUTable() {
         });
 
         // Only update selected items from DB if no recent action (prevents race condition reverting status)
-        const timeSinceAction = Date.now() - lastActionRef.current;
         if (timeSinceAction > 5000) {
           setSelectedReport((prevSelected) => {
             if (!prevSelected) return null;
@@ -771,14 +776,20 @@ export default function LGUTable() {
   };
 
   const handleAcknowledgeReport = async () => {
-    if (!selectedReport?.parent_report_id || selectedReport.acknowledged_at || selectedReport.status?.toLowerCase() === "verified" || isSubmittingReport) return;
+    if (!selectedReport?.parent_report_id || selectedReport.status?.toLowerCase() === "verified" || isSubmittingReport) return;
     setIsSubmittingReport(true);
     try {
-      const { data, error } = await supabase.rpc("acknowledge_report_update", {
-        update_id: selectedReport.report_id
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Please sign in to review this update.');
+      const response = await fetch('/api/situational-reports/acknowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ report_id: selectedReport.report_id }),
       });
-      if (error) throw error;
-      const updated = { ...selectedReport, acknowledged_at: data.acknowledged_at, acknowledged_by: data.acknowledged_by };
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to verify report update.');
+      const updated = { ...selectedReport, ...result.report };
+      lastActionRef.current = Date.now();
       setSelectedReport(updated);
       setReports((prev) => {
         const next = prev.map((r) => r.report_id === updated.report_id ? updated : r);
@@ -1205,7 +1216,7 @@ export default function LGUTable() {
                                     <TableDataMuted className="text-xs truncate max-w-[180px]">{update.location_name}</TableDataMuted>
                                     <TableDataMuted className="text-xs whitespace-nowrap">{formatRelativeTime(update.created_at)}</TableDataMuted>
                                     <TableData className="text-xs">{renderPriority(update.priority_level)}</TableData>
-                                    <TableData>{getStatusBadge(update.acknowledged_at ? "Acknowledged" : update.status)}</TableData>
+                                    <TableData>{getStatusBadge(update.status)}</TableData>
                                   </TableRow>
                                 ))}
                                 {reportExpanded && item.updates.length === 0 && (
@@ -1428,9 +1439,7 @@ export default function LGUTable() {
 
                 {/* Status Badges Row */}
                 <div className="flex items-center gap-2 mt-3">
-                  {selectedReport.parent_report_id && selectedReport.acknowledged_at
-                    ? getStatusBadge("Acknowledged")
-                    : getStatusBadge(selectedReport.status)}
+                  {getStatusBadge(selectedReport.status)}
 
                   <span className="bg-orange-100 text-orange-800 font-black px-3 py-1 rounded-full text-xs uppercase tracking-wider">
                     {selectedReport.priority_level || "Medium"} Priority
@@ -1662,11 +1671,7 @@ export default function LGUTable() {
                         </div>
                       );
                     }
-                    return selectedReport.acknowledged_at ? (
-                      <div className="p-3.5 bg-emerald-50 text-emerald-800 border border-emerald-200 text-center font-bold text-sm rounded-2xl flex items-center justify-center gap-2">
-                        <BadgeCheck className="size-5" /> Acknowledged
-                      </div>
-                    ) : (
+                    return (
                       <button
                         id="btn-acknowledge-report"
                         onClick={handleAcknowledgeReport}
@@ -1674,7 +1679,7 @@ export default function LGUTable() {
                         className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-sm shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
                       >
                         {isSubmittingReport ? <Loader2 className="size-4.5 animate-spin" /> : <Check className="size-4.5 stroke-[3]" />}
-                        <span>Acknowledge Report</span>
+                        <span>{selectedReport.acknowledged_at ? 'Verify Acknowledged Report' : 'Acknowledge Report'}</span>
                       </button>
                     );
                   }

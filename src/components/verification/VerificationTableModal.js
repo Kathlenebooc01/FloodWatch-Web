@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import CardBasedText from "../cards/CardBasedText"
 import CardSubHeader from "../cards/CardSubHeader"
 import { X, CheckCircle2, XCircle, FileImage, ChevronLeft, ChevronRight, Sparkles, Loader2 } from "lucide-react"
@@ -14,6 +14,8 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
   const [isLoading, setIsLoading] = useState(true)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState(null)
+  const autoAnalysisId = useRef(null)
   const [decisionLoading, setDecisionLoading] = useState(false)
   const [decisionError, setDecisionError] = useState(null)
   const [status, setStatus] = useState(data?.status || 'pending')
@@ -29,6 +31,7 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
     setImageError(false)
     setStatus(data?.status || 'pending')
     setDecisionError(null)
+    setAiError(null)
     setAiResult({
       ai_is_valid: data?.ai_is_valid ?? null,
       ai_confidence_score: data?.ai_confidence_score ?? null,
@@ -78,6 +81,7 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
   const runAiVerification = async () => {
     if (aiLoading || !data) return;
     setAiLoading(true);
+    setAiError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/lantaw/verify', {
@@ -88,6 +92,7 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
         })
       });
       const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || 'ID analysis is unavailable. Please review manually or retry.');
       if (resData?.ai_insight) {
         setAiResult({
           ai_is_valid: resData.ai_is_valid,
@@ -97,7 +102,7 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
         if (onStatusUpdate) onStatusUpdate();
       }
     } catch (err) {
-      console.error("AI verification failed:", err);
+      setAiError(err.message || 'ID analysis is unavailable. Please review manually or retry.');
     } finally {
       setAiLoading(false);
     }
@@ -129,7 +134,9 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
 
   // Automatically trigger AI verification if never run before
   useEffect(() => {
-    if (data?.id_verification_id && !data?.ai_insight && !aiResult?.ai_insight && !aiLoading) {
+    if (data?.id_verification_id && !data?.ai_insight && !aiResult?.ai_insight &&
+        autoAnalysisId.current !== data.id_verification_id) {
+      autoAnalysisId.current = data.id_verification_id;
       runAiVerification();
     }
   }, [data?.id_verification_id]);
@@ -296,6 +303,7 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
             </div>
 
             <div className="bg-gradient-to-br from-blue-50/50 via-gray-50 to-white p-4 rounded-xl border border-blue-100/60 shadow-xs space-y-4">
+              {aiError && <p role="alert" className="text-xs text-amber-700">{aiError} You can still review the images and decide manually.</p>}
               <div className="flex items-center justify-between">
                 <div>
                   <CardBasedText className="text-xs text-gray-500 mb-1 font-medium">AI Validity Check</CardBasedText>
