@@ -871,23 +871,23 @@ export default function LGUTable() {
       const { data: { session } } = await supabase.auth.getSession();
       const reviewerId = session?.user?.id || null;
       const now = new Date().toISOString();
+      let verifiedReport = null;
 
       if (selectedSignal.isIncidentEscalation) {
-        // incident_report table check constraint only permits: 'Verified', 'Rejected', 'Ready_For_LGU', 'Pending_AI'
-        const incidentDbStatus = (targetStatus === "Acknowledged" || targetStatus === "Resolved" || targetStatus === "Verified")
-          ? "Verified"
-          : targetStatus === "Rejected"
-          ? "Rejected"
-          : "Verified";
-
-        const { error } = await supabase
-          .from("incident_report")
-          .update({
-            status: incidentDbStatus,
-            reviewed_at: now,
-            reviewed_by: reviewerId
-          })
-          .eq("report_id", selectedSignal.report_id || selectedSignal.distress_id);
+        let error;
+        if (targetStatus === "Acknowledged") {
+          const result = await supabase.rpc("verify_support_escalation", {
+            escalation_id: selectedSignal.report_id || selectedSignal.distress_id
+          });
+          error = result.error;
+          verifiedReport = result.data;
+        } else {
+          const result = await supabase.from("incident_report")
+            .update({ status: "Rejected", reviewed_at: now, reviewed_by: reviewerId })
+            .eq("report_id", selectedSignal.report_id || selectedSignal.distress_id)
+            .eq("status", selectedSignal.status);
+          error = result.error;
+        }
 
         if (error) {
           console.error("🚨 Error updating incident escalation:", error.message);
@@ -895,17 +895,17 @@ export default function LGUTable() {
           return;
         }
 
-        if (selectedSignal.user_id) {
-          try {
-            await supabase.from("notifications").insert({
-              user_id: selectedSignal.user_id,
-              title: incidentDbStatus === "Verified" ? "Escalation Verified" : "Escalation Rejected",
-              message: `Your escalation request has been ${incidentDbStatus === "Verified" ? "acknowledged and verified" : "rejected"} by the LGU.`,
-              type: "Updates",
-              target_role: "lgu"
-            });
-          } catch (e) {}
+        if (targetStatus === "Rejected" && selectedSignal.user_id) {
+          const notification = await supabase.from("notifications").insert({
+            user_id: selectedSignal.user_id,
+            title: "Escalation Rejected",
+            message: "Your escalation request has been rejected by the LGU.",
+            type: "Updates",
+            target_role: "lgu"
+          });
+          if (notification.error) console.error("Error notifying LGU of rejected escalation:", notification.error);
         }
+
       } else {
         // Update distress_signals table
         const updateData = { status: targetStatus };
@@ -926,14 +926,14 @@ export default function LGUTable() {
       }
 
       lastActionRef.current = Date.now();
-      const updatedStatus = selectedSignal.isIncidentEscalation
-        ? ((targetStatus === "Acknowledged" || targetStatus === "Resolved") ? "Verified" : targetStatus)
-        : targetStatus;
+      const updatedStatus = selectedSignal.isIncidentEscalation && targetStatus === "Acknowledged"
+        ? "Verified" : targetStatus;
       const updated = { 
         ...selectedSignal, 
+        ...(verifiedReport || {}),
         status: updatedStatus, 
-        acknowledged_at: now,
-        reviewed_at: now 
+        acknowledged_at: verifiedReport?.acknowledged_at || (selectedSignal.isIncidentEscalation ? selectedSignal.acknowledged_at : now),
+        reviewed_at: verifiedReport?.reviewed_at || now
       };
       setSelectedSignal(updated);
 
@@ -1870,20 +1870,10 @@ export default function LGUTable() {
 
                   if (isAccepted) {
                     return (
-                      <>
-                        <div className="p-3 bg-emerald-50 text-emerald-800 border border-emerald-200 text-center font-bold text-xs rounded-xl flex items-center justify-center gap-2">
-                          <BadgeCheck className="size-4" />
-                          This distress signal has been accepted and acknowledged.
-                        </div>
-                        <button
-                          onClick={() => handleDistressStatusTransition("Resolved")}
-                          disabled={isSubmittingDistress}
-                          className="w-full py-3.5 px-4 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-bold text-sm shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                        >
-                          {isSubmittingDistress ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-                          Mark as Resolved
-                        </button>
-                      </>
+                      <div className="p-3 bg-emerald-50 text-emerald-800 border border-emerald-200 text-center font-bold text-xs rounded-xl flex items-center justify-center gap-2">
+                        <BadgeCheck className="size-4" />
+                        This distress signal has been accepted and acknowledged.
+                      </div>
                     );
                   }
 

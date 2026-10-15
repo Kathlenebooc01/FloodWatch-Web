@@ -1,6 +1,6 @@
 import ViewProfilePane from "@/components/utilities/request/ViewProfilePane"
 import ViewRequesDetails from "@/components/utilities/request/ViewRequesDetails"
-export default async function page({ searchParams }) {
+export default async function Page({ searchParams }) {
   const { id } = await searchParams
   return (
     <section className="grid gap-1 lg:grid-cols-3">

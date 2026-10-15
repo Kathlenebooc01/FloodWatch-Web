@@ -143,7 +143,7 @@ export default function ApprovedandDispatchSideModal({ requestId, items, isOpen,
 
   return (
     <SideModal>
-      <div className="flex flex-col bg-white h-full">
+      <div className="flex flex-col bg-white h-full min-h-0">
         <div className="p-4 bg-white sticky top-0 flex justify-between items-center border-b border-gray-100 z-10">
           <CardSubHeader className='text-gray-600'>Approve and Dispatch</CardSubHeader>
           <button onClick={onClose} className="modal-icon-button hover:bg-gray-100 p-1 rounded-full transition-colors">
@@ -151,7 +151,7 @@ export default function ApprovedandDispatchSideModal({ requestId, items, isOpen,
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 grid gap-8 pb-12">
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-6 flex flex-col gap-6">
           {/* Batch Delivery Toggle */}
           <div className="grid gap-3">
             <CardBasedText className="font-bold text-gray-800 text-sm">This will be delivered by Batch?</CardBasedText>

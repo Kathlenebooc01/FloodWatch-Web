@@ -2,14 +2,15 @@ import { Resend } from 'resend'
 import { NextResponse } from 'next/server'
 
 export async function POST(request) {
-  // Initialize inside the function to prevent Vercel build errors if the key is missing
-  const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy_key_for_build_purposes')
-
   try {
+    if (!process.env.RESEND_API_KEY) {
+      return NextResponse.json({ error: 'RESEND_API_KEY is not configured.' }, { status: 500 })
+    }
+    const resend = new Resend(process.env.RESEND_API_KEY)
     const { email, lguName, role, inviteCode } = await request.json()
 
     // Build the registration URL with the invite code
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
     const registrationUrl = `${baseUrl}/register/provincial/${inviteCode}`
 
     // For testing phase: Log the invite link so it can be copied directly from the terminal

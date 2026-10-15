@@ -74,7 +74,7 @@ export default function UserModal({ invitationId, onClose }) {
             <span className="modal-icon-button" onClick={onClose}>
                 <X className="size-5" />
             </span>
-            <CardHeader className="text-gray-500">Contributor's Information</CardHeader>
+            <CardHeader className="text-gray-500">Contributor&apos;s Information</CardHeader>
         </div>
         <div className="p-4 grid gap-4">
             <SingleLineSkeleton />
@@ -116,7 +116,7 @@ export default function UserModal({ invitationId, onClose }) {
   if (status === "expired") statusBannerClass = "default-banner-red"
 
   // Disabled for pending (already sent) and accepted (already used) — only expired can be resent
-  const isResendDisabled = status === "pending" || status === "accepted" || resendLoading
+  const isResendDisabled = status === "accepted" || resendLoading
 
   const handleResend = async () => {
     setResendLoading(true)
@@ -137,27 +137,26 @@ export default function UserModal({ invitationId, onClose }) {
 
       if (updateError) throw updateError
 
-      // Try sending the email
-      try {
-        await fetch("/api/send-invite-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: invitation.official_email,
-            lguName: invitation.lgu_name,
-            role: invitation.account_role,
-            inviteCode: newCode,
-          }),
-        })
-      } catch (emailErr) {
-        console.error("Failed to send resend email:", emailErr)
-      }
-
-      // Update local state so the banner and button reflect the new status
       setData((prev) => ({
         ...prev,
         invitation: { ...prev.invitation, status: "pending", invite_code: newCode, expires_at: newExpiry },
       }))
+
+      const emailResponse = await fetch("/api/send-invite-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: invitation.official_email,
+          lguName: invitation.lgu_name,
+          role: invitation.account_role,
+          inviteCode: newCode,
+        }),
+      })
+      if (!emailResponse.ok) {
+        const result = await emailResponse.json().catch(() => ({}))
+        throw new Error(`Email was not sent: ${result.error || 'Email service error'}. Please retry.`)
+      }
+
       setResendSuccess(true)
     } catch (err) {
       setResendError(err.message || "Failed to resend invitation.")

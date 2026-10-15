@@ -162,6 +162,21 @@ export default function InviteUserModal({ onClose }) {
     setSuccess(false)
 
     try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) throw sessionError || new Error('Please sign in again.')
+      const cleanupResponse = await fetch('/api/invitations/cleanup-stale', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+      if (!cleanupResponse.ok) {
+        const result = await cleanupResponse.json()
+        throw new Error(result.error || 'Could not check existing invitations.')
+      }
+
       // Check existing invitations
       const { data: existingInvites, error: fetchError } = await supabase
         .from('invitations')
@@ -227,20 +242,19 @@ export default function InviteUserModal({ onClose }) {
       console.log(`%c${inviteUrl}`, 'color: #16a34a; font-weight: bold; font-size: 14px; text-decoration: underline')
       console.log('%c=============================================', 'color: #0035A9; font-weight: bold')
 
-      // Try sending the email via an API route
-      try {
-        await fetch('/api/send-invite-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email,
-            lguName: resolvedLguName || lguName || "National",
-            role: selectedRole,
-            inviteCode
-          })
+      const emailResponse = await fetch('/api/send-invite-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          lguName: resolvedLguName || lguName || "National",
+          role: selectedRole,
+          inviteCode
         })
-      } catch (emailErr) {
-        console.error("Failed to send email API:", emailErr)
+      })
+      if (!emailResponse.ok) {
+        const result = await emailResponse.json().catch(() => ({}))
+        throw new Error(`Invitation saved, but the email was not sent: ${result.error || 'Email service error'}. Open the pending invitation to retry.`)
       }
 
       setSuccess(true)

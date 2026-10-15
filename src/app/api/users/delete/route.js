@@ -24,6 +24,17 @@ export async function POST(req) {
       }
     )
 
+    // Keep the invitation record in sync when this account is removed.
+    const { data: profile, error: lookupError } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', userId)
+      .maybeSingle()
+    if (lookupError) throw lookupError
+    const { data: authAccount, error: authLookupError } = await supabase.auth.admin.getUserById(userId)
+    if (authLookupError && authLookupError.message !== 'User not found') throw authLookupError
+    const accountEmail = authAccount?.user?.email || profile?.email
+
     // 0. Delete related records in child tables that reference this user_id
     await supabase.from('incident_report').delete().eq('user_id', userId);
     await supabase.from('notifications').delete().eq('user_id', userId);
@@ -51,6 +62,15 @@ export async function POST(req) {
         console.error("Error deleting auth user:", authError)
         throw authError
       }
+    }
+
+    if (accountEmail) {
+      const { error: invitationError } = await supabase
+        .from('invitations')
+        .delete()
+        .eq('official_email', accountEmail)
+        .eq('status', 'accepted')
+      if (invitationError) throw invitationError
     }
 
     return NextResponse.json({ success: true, message: 'Account permanently deleted' })
