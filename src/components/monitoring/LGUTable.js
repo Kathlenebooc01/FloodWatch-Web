@@ -1,5 +1,6 @@
 "use client"
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
+import { useSearchParams } from "next/navigation"
 import TableScrollWrapper from "@/components/table/TableScrollWrapper"
 import Table from "@/components/table/Table"
 import DataTable from "@/components/table/DataTable"
@@ -318,7 +319,15 @@ const getReportAttachments = (item) => {
 };
 
 export default function LGUTable() {
+  const searchParams = useSearchParams()
+  const requestedDistressId = searchParams.get("distressId")
   const [activeTab, setActiveTab] = useState("Report Table")
+
+  useEffect(() => {
+    if (activeTab === "Distress Signals") {
+      window.dispatchEvent(new Event('floodwatch:distress-page-opened'))
+    }
+  }, [activeTab])
 
   // Cooldown ref to prevent real-time refetch from overwriting optimistic state after actions
   const lastActionRef = useRef(0)
@@ -379,6 +388,7 @@ export default function LGUTable() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
   const [selectedSignal, setSelectedSignal] = useState(null)
   const [isDistressModalOpen, setIsDistressModalOpen] = useState(false)
+  const openedDistressLinkRef = useRef(null)
 
   // Image preview modal
   const [previewImage, setPreviewImage] = useState(null)
@@ -659,6 +669,18 @@ export default function LGUTable() {
     setIsDistressModalOpen(false);
     setSelectedSignal(null);
   };
+
+  useEffect(() => {
+    if (!requestedDistressId || openedDistressLinkRef.current === requestedDistressId) return;
+    const signal = distressSignals.find(item => String(item.distress_id) === requestedDistressId);
+    if (!signal) return;
+    openedDistressLinkRef.current = requestedDistressId;
+    queueMicrotask(() => {
+      setActiveTab("Distress Signals");
+      setSelectedSignal(signal);
+      setIsDistressModalOpen(true);
+    });
+  }, [requestedDistressId, distressSignals]);
 
   // Status Badge Helper (Displays "Pending", "Verified", or "Rejected")
   const getStatusBadge = (status, isRedTheme = false) => {
@@ -1014,6 +1036,9 @@ export default function LGUTable() {
               className={`relative ${activeTab === "Distress Signals" ? "button-toogle-active font-bold !bg-red-500 !text-white" : ""}`}
               onClick={() => {
                 setActiveTab("Distress Signals");
+                if (activeTab === "Distress Signals") {
+                  window.dispatchEvent(new Event('floodwatch:distress-page-opened'));
+                }
               }}
             >
               <span className="flex items-center gap-1.5">
