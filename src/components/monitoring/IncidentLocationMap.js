@@ -1,6 +1,6 @@
 "use client"
 
-import { Component, useEffect, useState } from "react"
+import { Component, useEffect, useRef, useState } from "react"
 import Map, { Marker, NavigationControl } from "react-map-gl/mapbox"
 import { MapPin } from "lucide-react"
 import "mapbox-gl/dist/mapbox-gl.css"
@@ -25,23 +25,48 @@ class MapErrorBoundary extends Component {
 function IncidentMap({ latitude, longitude, municipality, approximate = false, onLocationChange }) {
   const [failed, setFailed] = useState(false)
   const [labelCoordinates, setLabelCoordinates] = useState(null)
+  const lookupStartedRef = useRef(false)
+  const lookupControllerRef = useRef(null)
   const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || DEFAULT_MAPBOX_TOKEN
   const markerCoordinates = approximate && labelCoordinates ? labelCoordinates : { latitude, longitude }
 
-  const locateMunicipalityLabel = event => {
-    if (!approximate || !municipality || labelCoordinates) return
+  useEffect(() => () => lookupControllerRef.current?.abort(), [])
+
+  const locateMunicipalityLabel = async event => {
+    if (!approximate || !municipality || labelCoordinates || lookupStartedRef.current) return
     const map = event.target
-    const layers = map.getStyle()?.layers?.filter(layer => layer.type === 'symbol' &&
-      /place|settlement|city|town|village|municipality/i.test(layer.id)).map(layer => layer.id) || []
-    if (!layers.length) return
     const normalize = name => String(name || '').toLowerCase().replace(/\b(city|municipality|of)\b/g, '').replace(/[^a-z0-9]/g, '')
     const wanted = normalize(municipality)
-    const feature = map.queryRenderedFeatures({ layers }).find(item =>
-      item.geometry?.type === 'Point' && normalize(item.properties?.name_en || item.properties?.name) === wanted)
-    const coordinates = feature?.geometry?.coordinates
-    if (coordinates && Number.isFinite(coordinates[0]) && Number.isFinite(coordinates[1])) {
+    const placeLayers = map.getStyle()?.layers?.filter(layer => layer['source-layer'] === 'place_label') || []
+    if (!placeLayers.length) return
+    lookupStartedRef.current = true
+    const sources = [...new Set(placeLayers.map(layer => layer.source))]
+    const matches = sources.flatMap(source => map.querySourceFeatures(source, { sourceLayer: 'place_label' }))
+      .filter(item => item.geometry?.type === 'Point' &&
+        (normalize(item.properties?.name) === wanted || normalize(item.properties?.name_en) === wanted))
+    const distance = item => Math.hypot(item.geometry.coordinates[0] - longitude, item.geometry.coordinates[1] - latitude)
+    const feature = matches.sort((a, b) => distance(a) - distance(b))[0]
+    let coordinates = feature?.geometry?.coordinates
+    if (!coordinates) {
+      const controller = new AbortController()
+      lookupControllerRef.current = controller
+      try {
+        const params = new URLSearchParams({ q: `${municipality}, Cebu, Philippines`, country: 'PH',
+          types: 'place,locality', proximity: `${longitude},${latitude}`, limit: '5', access_token: token })
+        const response = await fetch(`https://api.mapbox.com/search/geocode/v6/forward?${params}`, { signal: controller.signal })
+        if (response.ok) {
+          const result = await response.json()
+          coordinates = result.features?.find(item => normalize(item.properties?.name) === wanted)?.geometry?.coordinates
+        }
+      } catch (error) {
+        if (error.name !== 'AbortError') console.warn('Unable to locate municipality label:', error)
+      }
+    }
+    if (!lookupControllerRef.current?.signal.aborted && coordinates &&
+      Number.isFinite(coordinates[0]) && Number.isFinite(coordinates[1])) {
       const point = { longitude: coordinates[0], latitude: coordinates[1] }
       setLabelCoordinates(point)
+      map.flyTo({ center: [point.longitude, point.latitude], zoom: 12 })
       onLocationChange?.(point)
     }
   }
@@ -52,11 +77,13 @@ function IncidentMap({ latitude, longitude, municipality, approximate = false, o
 
   return (
     <Map
-      initialViewState={{ latitude, longitude, zoom: approximate ? 10 : 13 }}
+      initialViewState={{ latitude, longitude, zoom: approximate ? 12 : 13 }}
       mapStyle="mapbox://styles/mapbox/streets-v12"
       mapboxAccessToken={token}
       style={{ width: "100%", height: "100%" }}
-      onError={() => setFailed(true)}
+      onError={event => {
+        if (event.error?.name !== 'AbortError') setFailed(true)
+      }}
       onIdle={locateMunicipalityLabel}
     >
       <NavigationControl position="top-right" showCompass={false} />

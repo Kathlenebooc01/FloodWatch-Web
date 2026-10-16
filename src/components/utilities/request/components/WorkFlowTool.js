@@ -5,7 +5,7 @@ import CardBasedText from "@/components/cards/CardBasedText"
 import { supabase } from "@/supabase/util/supabase"
 import { normalizeRequestStatus, statusVariants } from "@/lib/domain-values.mjs"
 
-export default function WorkFlowTool({ status, requestId, allocations, onStatusChange, onApprove, userId }) {
+export default function WorkFlowTool({ status, requestId, allocations, returnConfirmedAt, onStatusChange, onApprove, userId }) {
   const [isLoading, setIsLoading] = useState(false)
 
   const handleReject = async () => {
@@ -67,21 +67,8 @@ export default function WorkFlowTool({ status, requestId, allocations, onStatusC
       try {
           setIsLoading(true)
 
-          // Update allocations batch
-          const { error: allocError } = await supabase
-              .from('resource_allocations')
-              .update({ batch: 'Returned', returned_at: new Date().toISOString() })
-              .eq('request_id', requestId)
-              .in('batch', statusVariants(['In_Transit', 'Received', 'Returning']))
-          
-          if (allocError) throw allocError
-
-          // Update the request status to Returned (fully completed)
-          const { error: requestError } = await supabase
-              .from('resource_requests')
-              .update({ status: 'Returned' })
-              .eq('request_id', requestId)
-          if (requestError) throw requestError
+          const { error } = await supabase.rpc('confirm_resource_return', { p_request_id: requestId })
+          if (error) throw error
 
           if (userId) {
              await supabase.from("notifications").insert({
@@ -103,12 +90,15 @@ export default function WorkFlowTool({ status, requestId, allocations, onStatusC
 
   const normalizedStatus = normalizeRequestStatus(status)
   const isPending = normalizedStatus === 'Pending'
-  const isAllocated = ['Fully_Allocated', 'Partially_Allocated', 'Pending_Dispatch', 'In_Transit', 'Received'].includes(normalizedStatus)
+  const isAllocated = ['Fully_Allocated', 'Partially_Allocated', 'Pending_Dispatch', 'In_Transit', 'Received', 'Returning', 'Returned'].includes(normalizedStatus)
   
   const hasPendingDispatch = allocations?.some(a => normalizeRequestStatus(a.batch || a.status) === 'Pending_Dispatch')
-  const hasDeployed = allocations?.some(a => ['In_Transit', 'Received', 'Returning'].includes(normalizeRequestStatus(a.batch || a.status)) || a.dispatched_at)
-  const isAllReturned = allocations?.length > 0 && allocations?.every(a => a.returned_at || normalizeRequestStatus(a.batch || a.status) === 'Returned')
+  const hasDeployed = allocations?.some(a => ['In_Transit', 'Received', 'Returning', 'Returned'].includes(normalizeRequestStatus(a.batch || a.status)) || a.dispatched_at)
+  const isAllReturned = Boolean(returnConfirmedAt) && allocations?.length > 0 && allocations?.every(a => a.returned_at || normalizeRequestStatus(a.batch || a.status) === 'Returned')
   const isStillInTransit = allocations?.some(a => !a.received_at && !a.delivered_at && !a.returned_at && !['Received', 'Returned', 'Returning'].includes(normalizeRequestStatus(a.batch || a.status)) && (normalizeRequestStatus(a.batch || a.status) === 'In_Transit' || a.dispatched_at))
+  const isReadyToReturn = !returnConfirmedAt && allocations?.length > 0 &&
+      (normalizedStatus === 'Returning' || allocations.some(a =>
+          a.returned_at || normalizeRequestStatus(a.batch) === 'Returning'))
 
   // Determine dynamic message
   let subText = "Choose an action to proceed";
@@ -165,9 +155,9 @@ export default function WorkFlowTool({ status, requestId, allocations, onStatusC
             {isAllocated && hasDeployed && (
                 <PrimaryButton 
                     onClick={handleMarkReturned}
-                    disabled={isLoading || isStillInTransit} 
-                    className={`text-xs ${isStillInTransit ? 'bg-gray-400 cursor-not-allowed hover:bg-gray-400' : 'bg-emerald-500 hover:bg-emerald-600'}`}
-                    title={isStillInTransit ? "Waiting for LGU to mark as received" : ""}
+                    disabled={isLoading || !isReadyToReturn}
+                    className={`text-xs ${!isReadyToReturn ? 'bg-gray-400 cursor-not-allowed hover:bg-gray-400' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                    title={!isReadyToReturn ? "Waiting for LGU to return resources to PDRRMO" : ""}
                 >
                     {isLoading ? 'Loading...' : 'Mark as Returned'}
                 </PrimaryButton>

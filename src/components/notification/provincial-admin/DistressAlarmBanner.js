@@ -6,12 +6,7 @@ import BannerModal from "@/components/Modal/BannerModal"
 import { ShieldAlert, MapPin, Volume2, X } from "lucide-react"
 import { supabase } from "@/supabase/util/supabase"
 
-const isEscalation = report =>
-  `${report.hazard_type || ""} ${report.report_type || ""} ${report.description || ""}`.toLowerCase().includes("escalat")
-
-const isNewEmergency = (table, row) =>
-  (table !== 'incident_report' || isEscalation(row)) &&
-  ['pending', 'pending_ai', 'submitted', 'ready_for_lgu'].includes((row.status || '').toLowerCase())
+const isNewEmergency = row => (row.status || '').toLowerCase() === 'pending'
 
 export default function DistressAlarmBanner() {
   const router = useRouter()
@@ -38,7 +33,7 @@ export default function DistressAlarmBanner() {
     if (!pendingRef.current.size) return
     if (!audioRef.current) {
       audioRef.current = new Audio('/sfx/TF022.WAV')
-      audioRef.current.loop = true
+      audioRef.current.loop = false
     }
     const audio = audioRef.current
     if (!audio.paused) return
@@ -64,18 +59,18 @@ export default function DistressAlarmBanner() {
       return persistRef.current
     }
 
-    const enqueue = async (table, row, provinceId) => {
-      const id = table === 'incident_report' ? row.report_id : row.distress_id
-      const key = `${table}:${id}`
-      if (!id || seenRef.current.has(key) || !isNewEmergency(table, row)) return
+    const enqueue = async (row, provinceId) => {
+      const id = row.distress_id
+      const key = `distress_signals:${id}`
+      if (!id || seenRef.current.has(key) || !isNewEmergency(row)) return
       seenRef.current.add(key)
       if (Date.parse(row.created_at) <= Date.parse(seenAtRef.current)) return
 
-      const { data, error } = await supabase.from(table)
+      const { data, error } = await supabase.from('distress_signals')
         .select('*, municipality:municipality_id(name, province_id)')
-        .eq(table === 'incident_report' ? 'report_id' : 'distress_id', id).maybeSingle()
+        .eq('distress_id', id).maybeSingle()
       if (error || !data || !active || data.municipality?.province_id !== provinceId) return
-      if (!isNewEmergency(table, data) || Date.parse(data.created_at) <= Date.parse(seenAtRef.current)) return
+      if (!isNewEmergency(data) || Date.parse(data.created_at) <= Date.parse(seenAtRef.current)) return
 
       pendingRef.current.add(key)
       setAlerts(previous => [...previous, {
@@ -85,13 +80,11 @@ export default function DistressAlarmBanner() {
     }
 
     const loadPending = async (provinceId) => {
-      for (const table of ['distress_signals', 'incident_report']) {
-        const { data, error } = await supabase.from(table)
-          .select('*').gt('created_at', seenAtRef.current)
-          .order('created_at', { ascending: true }).limit(200)
-        if (error || !active) continue
-        for (const row of data || []) await enqueue(table, row, provinceId)
-      }
+      const { data, error } = await supabase.from('distress_signals')
+        .select('*').gt('created_at', seenAtRef.current)
+        .order('created_at', { ascending: true }).limit(200)
+      if (error || !active) return
+      for (const row of data || []) await enqueue(row, provinceId)
     }
 
     const start = async () => {
@@ -119,12 +112,12 @@ export default function DistressAlarmBanner() {
         if (error) console.warn('Unable to save initial emergency alert state:', error.message)
       }
       if (!active) return
-      const subscribe = table => supabase
-        .channel(`provincial-emergency-${table}-${user.id}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table }, payload => {
-          void enqueue(table, payload.new, profile.province_id)
+      const channel = supabase
+        .channel(`provincial-emergency-distress_signals-${user.id}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'distress_signals' }, payload => {
+          void enqueue(payload.new, profile.province_id)
         }).subscribe()
-      channels = [subscribe('distress_signals'), subscribe('incident_report')]
+      channels = [channel]
       void loadPending(profile.province_id)
     }
 

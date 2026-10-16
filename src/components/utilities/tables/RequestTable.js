@@ -27,6 +27,23 @@ const statusStyles = {
   Rejected: 'summary-data-icon-red',
 }
 
+const requestUrgency = (request) => {
+  const stored = request.urgency ?? request.priority
+  const match = stored == null
+    ? String(request.request_reason || '').match(/\b(?:urgency|priority)(?:\s+level)?\s*[:=\-]\s*(low|medium|high)\b/i)
+    : null
+  const value = String(stored ?? match?.[1] ?? '').trim().toLowerCase()
+  return ['low', 'medium', 'high'].includes(value)
+    ? value.charAt(0).toUpperCase() + value.slice(1)
+    : 'N/A'
+}
+
+const urgencyColors = {
+  Low: 'text-blue-600',
+  Medium: 'text-yellow-600',
+  High: 'text-red-600',
+}
+
 export default function RequestTable() {
   const [data, setData] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -86,6 +103,7 @@ export default function RequestTable() {
               <Th>Municipality</Th>
               <Th>Status</Th>
               <Th>Requested At</Th>
+              <Th>Urgency</Th>
               <Th>Action</Th>
             </tr>
           </TableHead>
@@ -93,6 +111,7 @@ export default function RequestTable() {
             {isLoading ? (
               [1, 2, 3, 4, 5].map((skeleton) => (
                 <TableRow key={skeleton}>
+                  <TableData><SingleLineSkeleton /></TableData>
                   <TableData><SingleLineSkeleton /></TableData>
                   <TableData><SingleLineSkeleton /></TableData>
                   <TableData><SingleLineSkeleton /></TableData>
@@ -121,6 +140,7 @@ export default function RequestTable() {
                         minute: '2-digit',
                       })}
                     </TableDataMuted>
+                    <TableDataMuted><span className={urgencyColors[requestUrgency(item)]}>{requestUrgency(item)}</span></TableDataMuted>
                     <TableDataAction>
                       <button
                         onClick={() => router.push(`/provincial-admin/utilities/request/view-request?id=${item.request_id}`)}
@@ -133,7 +153,7 @@ export default function RequestTable() {
                 ))
             ) : (
               <tr>
-                <td colSpan={5} className="text-center py-10 text-gray-400 text-sm">No requests found</td>
+                <td colSpan={6} className="text-center py-10 text-gray-400 text-sm">No requests found</td>
               </tr>
             )}
           </tbody>

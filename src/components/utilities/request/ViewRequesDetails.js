@@ -11,7 +11,7 @@ import WorkFlowTool from "./components/WorkFlowTool"
 import LogisticsDetail from "./components/LogisticsDetail"
 import ApprovedandDispatchSideModal from "./components/ApprovedandDispatchSideModal"
 import { supabase } from "@/supabase/util/supabase"
-import { requestProgress } from "@/lib/domain-values.mjs"
+import { normalizeRequestStatus, requestProgress } from "@/lib/domain-values.mjs"
 import { DEFAULT_MAPBOX_TOKEN } from "@/lib/constants/mapbox"
 
 export default function ViewRequesDetails({ id }) {
@@ -95,6 +95,8 @@ export default function ViewRequesDetails({ id }) {
   }, [id, refetchData])
 
   const mapStatusToStatusBar = (status, allocs) => {
+    if (!request?.return_confirmed_at && allocs?.some(allocation => allocation.returned_at)) return 'Returning'
+    if (normalizeRequestStatus(status) === 'Returning') return 'Returning'
     return requestProgress(status, allocs || [])
   }
 
@@ -199,6 +201,7 @@ export default function ViewRequesDetails({ id }) {
                 status={request?.status} 
                 requestId={id} 
                 allocations={allocations} 
+                returnConfirmedAt={request?.return_confirmed_at}
                 onStatusChange={refetchData} 
                 onApprove={() => setIsModalOpen(true)}
                 userId={request?.profiles?.id}

@@ -35,7 +35,7 @@ export default function LGUSummary() {
 
     const loadData = async () => {
       try {
-        const [reportsRes, distressRes] = await Promise.all([
+        const [reportsRes, distressRows] = await Promise.all([
           supabase
             .from("incident_report")
             .select("report_id, hazard_type, report_type, description, status")
@@ -45,10 +45,19 @@ export default function LGUSummary() {
               "Under_Review", "under_review", "Submitted", "submitted"
             ]),
 
-          supabase
-            .from("distress_signals")
-            .select("distress_id", { count: "exact", head: true })
-            .in("status", ["Pending", "pending", "PENDING"]),
+          (async () => {
+            const rows = [];
+            for (let offset = 0; ; offset += 1000) {
+              const result = await supabase.from("distress_signals")
+                .select("municipality_id, profile_id, profiles:profile_id!inner(role)")
+                .ilike("status", "pending")
+                .in("profiles.role", ["lgu_headmaster", "lgu_frontliner"])
+                .range(offset, offset + 999);
+              if (result.error) throw result.error;
+              rows.push(...(result.data || []));
+              if ((result.data || []).length < 1000) return rows;
+            }
+          })(),
         ]);
 
         if (!isMounted) return;
@@ -61,7 +70,7 @@ export default function LGUSummary() {
         });
 
         const repCount = reportsRes.error ? (cachedSummary?.reportsCount ?? 0) : situationalPending.length;
-        const disCount = distressRes.error ? (cachedSummary?.distressCount ?? 0) : (distressRes.count || 0);
+        const disCount = new Set(distressRows.map(row => row.municipality_id || row.profile_id).filter(Boolean)).size;
 
         const updatedSummary = { reportsCount: repCount, distressCount: disCount };
         cachedSummary = updatedSummary;

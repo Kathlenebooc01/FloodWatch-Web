@@ -62,12 +62,12 @@ const getInitialReports = () => {
 };
 
 const getInitialDistressSignals = () => {
-  if (cachedDistressSignals) return cachedDistressSignals;
+  if (cachedDistressSignals) return cachedDistressSignals.filter(signal => !signal.isIncidentEscalation);
   if (typeof window !== "undefined") {
     try {
       const stored = sessionStorage.getItem("floodwatch_lgu_distress");
       if (stored) {
-        cachedDistressSignals = JSON.parse(stored);
+        cachedDistressSignals = JSON.parse(stored).filter(signal => !signal.isIncidentEscalation);
         return cachedDistressSignals;
       }
     } catch (e) {}
@@ -419,7 +419,6 @@ export default function LGUTable() {
 
         // 1. Separate Situational Reports (Report Table) vs Escalation Reports (Distress Signals)
         const situationalRows = allIncidentRows.filter(rep => isSituationalReport(rep) || rep.parent_report_id);
-        const escalationRows = allIncidentRows.filter(isEscalationReport);
 
         // Process Situational Reports
         const processedReports = situationalRows.map((rep) => {
@@ -435,30 +434,8 @@ export default function LGUTable() {
           };
         });
 
-        // Combine Escalations from incident_report + distress_signals table
-        const combinedDistress = [
-          ...escalationRows.map((esc) => {
-            let muniName = esc.municipality_or_city?.name || "Lapu-Lapu City";
-            muniName = muniName
-              .toLowerCase()
-              .split(" ")
-              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-              .join(" ");
-
-            return {
-              ...esc,
-              distress_id: esc.report_id,
-              isIncidentEscalation: true,
-              acknowledged_at: esc.reviewed_at || esc.acknowledged_at,
-              lgu_name: esc.profiles?.organization_name || esc.profiles?.full_name || "LGU Emergency Unit",
-              municipality_name: muniName,
-              clean_title: cleanReportTitle(esc.hazard_type || "Support Escalation"),
-              formatted_id: formatReportId(esc.report_id, esc.created_at),
-              priority_level: "High",
-              remarks: esc.description || "Regional Support Escalation requested by LGU."
-            };
-          }),
-          ...rawDistressRows.map((sig) => {
+        // Escalation monitoring reads only distress_signals.
+        const combinedDistress = rawDistressRows.map((sig) => {
             const profile = sig.profiles;
             let muniName = sig.municipality_or_city?.name || "Lapu-Lapu City";
             muniName = muniName
@@ -469,7 +446,6 @@ export default function LGUTable() {
 
             return {
               ...sig,
-              isIncidentEscalation: false,
               lgu_name: profile?.organization_name || profile?.full_name || (sig.profile_id ? `LGU Unit (${sig.profile_id.substring(0, 6)})` : "LGU Emergency Unit"),
               municipality_name: muniName,
               clean_title: "Emergency Distress Signal",
@@ -477,8 +453,7 @@ export default function LGUTable() {
               priority_level: "High",
               remarks: sig.remarks || "Emergency distress signal transmitted by LGU unit."
             };
-          })
-        ];
+          });
 
         const timeSinceAction = Date.now() - lastActionRef.current;
         if (timeSinceAction > 5000) cachedReports = processedReports;
@@ -890,72 +865,24 @@ export default function LGUTable() {
     setIsSubmittingDistress(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const reviewerId = session?.user?.id || null;
       const now = new Date().toISOString();
-      let verifiedReport = null;
+      const { error } = targetStatus === "Acknowledged"
+        ? await supabase.rpc("verify_distress_signal", { p_distress_id: selectedSignal.distress_id })
+        : await supabase.rpc("reject_distress_signal", { p_distress_id: selectedSignal.distress_id });
 
-      if (selectedSignal.isIncidentEscalation) {
-        let error;
-        if (targetStatus === "Acknowledged") {
-          const result = await supabase.rpc("verify_support_escalation", {
-            escalation_id: selectedSignal.report_id || selectedSignal.distress_id
-          });
-          error = result.error;
-          verifiedReport = result.data;
-        } else {
-          const result = await supabase.from("incident_report")
-            .update({ status: "Rejected", reviewed_at: now, reviewed_by: reviewerId })
-            .eq("report_id", selectedSignal.report_id || selectedSignal.distress_id)
-            .eq("status", selectedSignal.status);
-          error = result.error;
-        }
-
-        if (error) {
-          console.error("🚨 Error updating incident escalation:", error.message);
-          alert(`Error updating report: ${error.message}`);
-          return;
-        }
-
-        if (targetStatus === "Rejected" && selectedSignal.user_id) {
-          const notification = await supabase.from("notifications").insert({
-            user_id: selectedSignal.user_id,
-            title: "Escalation Rejected",
-            message: "Your escalation request has been rejected by the LGU.",
-            type: "Updates",
-            target_role: "lgu"
-          });
-          if (notification.error) console.error("Error notifying LGU of rejected escalation:", notification.error);
-        }
-
-      } else {
-        // Update distress_signals table
-        const updateData = { status: targetStatus };
-        if (targetStatus === "Acknowledged") {
-          updateData.acknowledged_at = now;
-          if (reviewerId) updateData.acknowledged_by = reviewerId;
-        }
-        const { error } = await supabase
-          .from("distress_signals")
-          .update(updateData)
-          .eq("distress_id", selectedSignal.distress_id);
-
-        if (error) {
-          console.error("🚨 Error updating distress_signals:", error.message);
-          alert(`Error updating distress signal: ${error.message}`);
-          return;
-        }
+      if (error) {
+        console.error("Error updating distress_signals:", error.message);
+        alert(`Error updating distress signal: ${error.message}`);
+        return;
       }
 
       lastActionRef.current = Date.now();
-      const updatedStatus = selectedSignal.isIncidentEscalation && targetStatus === "Acknowledged"
+      const updatedStatus = targetStatus === "Acknowledged"
         ? "Verified" : targetStatus;
-      const updated = { 
-        ...selectedSignal, 
-        ...(verifiedReport || {}),
-        status: updatedStatus, 
-        acknowledged_at: verifiedReport?.acknowledged_at || (selectedSignal.isIncidentEscalation ? selectedSignal.acknowledged_at : now),
-        reviewed_at: verifiedReport?.reviewed_at || now
+      const updated = {
+        ...selectedSignal,
+        status: updatedStatus,
+        acknowledged_at: targetStatus === "Acknowledged" ? now : selectedSignal.acknowledged_at
       };
       setSelectedSignal(updated);
 
@@ -1163,7 +1090,7 @@ export default function LGUTable() {
                                 <React.Fragment key={item.report_id}>
                                 <TableRow
                                   key={item.report_id || `rep-${group.municipality_name}-${repIndex}`}
-                                  onClick={() => setExpandedReports(prev => ({ ...prev, [item.report_id]: !reportExpanded }))}
+                                  onClick={() => handleOpenReportModal(item)}
                                   className="hover:bg-blue-50/50 cursor-pointer transition-colors border-b border-gray-100 bg-white"
                                 >
                                   <TableData className="pl-9 py-3">

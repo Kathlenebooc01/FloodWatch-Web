@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { Trash, MoreVertical, CheckCheck } from "lucide-react"
 import CardSubHeader from "@/components/cards/CardSubHeader"
 import CardBasedText from "@/components/cards/CardBasedText"
@@ -8,30 +8,12 @@ import { supabase } from "@/supabase/util/supabase"
 import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
 import CircleSkeleton from "@/components/skeleton/CircleSkeleton"
 
-// Audio player helper for Notification.wav
-const playNotificationSound = () => {
-  try {
-    const audio = new Audio('/sfx/Notification.wav')
-    audio.volume = 0.75
-    const playPromise = audio.play()
-    if (playPromise !== undefined) {
-      playPromise.catch((err) => {
-        // Safe catch for browser autoplay restrictions before user interaction
-        console.log("Notification audio playback notice:", err)
-      })
-    }
-  } catch (err) {
-    console.warn("Could not play notification sound:", err)
-  }
-}
-
 export default function NotificationBanner({ searchTerm, sortOrder }) {
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
   const [openMenuId, setOpenMenuId] = useState(null)
-  const hasPlayedInitial = useRef(false)
 
-  const fetchNotifications = async (isRealtime = false) => {
+  const fetchNotifications = async () => {
     let query = supabase
       .from('notifications')
       .select('*')
@@ -48,14 +30,6 @@ export default function NotificationBanner({ searchTerm, sortOrder }) {
       console.error("Error fetching provincial notifications:", error)
     } else {
       setNotifications(data || [])
-
-      // Play notification audio when notifications are displayed or on real-time arrival
-      if (data && data.length > 0) {
-        if (!hasPlayedInitial.current || isRealtime) {
-          playNotificationSound()
-          hasPlayedInitial.current = true
-        }
-      }
     }
     setLoading(false)
   }
@@ -63,12 +37,11 @@ export default function NotificationBanner({ searchTerm, sortOrder }) {
   useEffect(() => {
     fetchNotifications()
 
-    // Realtime subscription: play sound and refresh on incoming notification
+    // Realtime subscription: refresh on incoming notification
     const channel = supabase
       .channel('provincial_notifications_channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, (payload) => {
-        playNotificationSound()
-        fetchNotifications(true)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
+        fetchNotifications()
       })
       .subscribe()
 
