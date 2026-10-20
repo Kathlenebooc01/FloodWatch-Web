@@ -38,17 +38,14 @@ export function parseVerificationAssessment(raw) {
 export async function assessVerification(parts, credentials, fetchImpl = fetch) {
   const attempts = [
     { key: credentials.primaryKey, model: credentials.primaryModel },
-    { key: credentials.backupKey, model: credentials.backupModel || 'gemini-3.5-flash-lite' },
-    { key: credentials.backupKey || credentials.primaryKey, model: 'gemini-3.5-flash-lite' },
-    { key: credentials.backupKey || credentials.primaryKey, model: 'gemini-3.5-flash' },
+    { key: credentials.backupKey || credentials.primaryKey, model: credentials.backupModel },
+    { key: credentials.thirdKey || credentials.backupKey || credentials.primaryKey, model: credentials.thirdModel },
   ].filter((attempt, index, all) => attempt.key && attempt.model &&
     all.findIndex(other => other.key === attempt.key && other.model === attempt.model) === index);
   if (!attempts.length) throw new Error('Lantaw AI is not configured. Contact your administrator.');
   const failures = [];
   for (const attempt of attempts) {
-    for (let retry = 0; retry < 2; retry++) {
-      if (retry) await new Promise(resolve => setTimeout(resolve, 600 + Math.floor(Math.random() * 300)));
-      try {
+    try {
       const response = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(attempt.model)}:generateContent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': attempt.key },
@@ -61,21 +58,17 @@ export async function assessVerification(parts, credentials, fetchImpl = fetch) 
       });
       if (!response.ok) {
         failures.push(`${attempt.model}: HTTP ${response.status}`);
-        if ([429, 500, 502, 503, 504].includes(response.status) && retry === 0) continue;
-        break;
+        continue;
       }
       const body = await response.json();
       const raw = body.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('');
       const assessment = parseVerificationAssessment(raw);
       if (assessment) return assessment;
       failures.push(`${attempt.model}: ${body.candidates?.[0]?.finishReason || 'empty or invalid assessment'}`);
-      break;
       } catch (error) {
         failures.push(`${attempt.model}: ${error.name === 'TimeoutError' ? 'timeout' : 'network or response error'}`);
-        if (retry === 1) break;
-      }
     }
   }
   console.warn('ID verification Gemini attempts failed:', failures.join('; '));
-  throw new Error('ID analysis is temporarily unavailable. Please review the images manually or retry.');
+  throw new Error('AI verification is temporarily unavailable. Please try again later.');
 }

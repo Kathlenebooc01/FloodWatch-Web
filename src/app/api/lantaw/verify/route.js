@@ -7,8 +7,10 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.NEXT_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI;
 const GEMINI_BACKUP_KEY = process.env.GEMINI_LANTAW_BACKUP_AI;
+const GEMINI_THIRD_KEY = process.env.GEMINI_LANTAW_THIRD_AI;
 const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-3.1-flash-lite';
 const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.5-flash-lite';
+const THIRD_MODEL = process.env.GEMINI_LANTAW_THIRD_MODEL;
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -65,7 +67,7 @@ Respond STRICTLY with a valid JSON object only:
 
     const parsed = await assessVerification(
       [{ text: prompt }, idImage, ...(selfieImage ? [selfieImage] : [])],
-      { primaryKey: GEMINI_API_KEY, primaryModel: PRIMARY_MODEL, backupKey: GEMINI_BACKUP_KEY, backupModel: BACKUP_MODEL },
+      { primaryKey: GEMINI_API_KEY, primaryModel: PRIMARY_MODEL, backupKey: GEMINI_BACKUP_KEY, backupModel: BACKUP_MODEL, thirdKey: GEMINI_THIRD_KEY, thirdModel: THIRD_MODEL },
     );
 
     const latency = Date.now() - startTime;

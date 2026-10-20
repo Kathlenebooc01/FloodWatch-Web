@@ -16,6 +16,7 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState(null)
   const autoAnalysisId = useRef(null)
+  const analysisInFlight = useRef(false)
   const [decisionLoading, setDecisionLoading] = useState(false)
   const [decisionError, setDecisionError] = useState(null)
   const [status, setStatus] = useState(data?.status || 'pending')
@@ -24,6 +25,8 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
     ai_confidence_score: data?.ai_confidence_score ?? null,
     ai_insight: data?.ai_insight || null
   })
+  const aiComplete = !aiLoading && !aiError && typeof aiResult.ai_is_valid === 'boolean' &&
+    aiResult.ai_confidence_score != null && !!aiResult.ai_insight
 
   // Reset image carousel state and ai state when the selected row changes
   useEffect(() => {
@@ -79,9 +82,11 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
   }, [data?.user_id])
 
   const runAiVerification = async () => {
-    if (aiLoading || !data) return;
+    if (analysisInFlight.current || !data) return;
+    analysisInFlight.current = true;
     setAiLoading(true);
     setAiError(null);
+    setAiResult({ ai_is_valid: null, ai_confidence_score: null, ai_insight: null });
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/lantaw/verify', {
@@ -93,23 +98,24 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
       });
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.error || 'ID analysis is unavailable. Please review manually or retry.');
-      if (resData?.ai_insight) {
+      if (typeof resData?.ai_is_valid === 'boolean' && Number.isFinite(Number(resData.ai_confidence_score)) && resData?.ai_insight) {
         setAiResult({
           ai_is_valid: resData.ai_is_valid,
           ai_confidence_score: resData.ai_confidence_score,
           ai_insight: resData.ai_insight
         });
         if (onStatusUpdate) onStatusUpdate();
-      }
+      } else throw new Error('AI verification is temporarily unavailable. Please try again later.');
     } catch (err) {
-      setAiError(err.message || 'ID analysis is unavailable. Please review manually or retry.');
+      setAiError('AI verification is temporarily unavailable. Please try again later.');
     } finally {
+      analysisInFlight.current = false;
       setAiLoading(false);
     }
   };
 
   const decide = async (decision) => {
-    if (decisionLoading) return;
+    if (decisionLoading || !aiComplete) return;
     setDecisionLoading(true);
     setDecisionError(null);
     try {
@@ -303,7 +309,7 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
             </div>
 
             <div className="bg-gradient-to-br from-blue-50/50 via-gray-50 to-white p-4 rounded-xl border border-blue-100/60 shadow-xs space-y-4">
-              {aiError && <p role="alert" className="text-xs text-amber-700">{aiError} You can still review the images and decide manually.</p>}
+              {aiError && <p role="alert" className="text-xs text-amber-700">{aiError}</p>}
               <div className="flex items-center justify-between">
                 <div>
                   <CardBasedText className="text-xs text-gray-500 mb-1 font-medium">AI Validity Check</CardBasedText>
@@ -357,8 +363,8 @@ export default function VerificationTableModal({ data, onClose, onStatusUpdate }
         <div className="pt-4 border-t border-gray-100 flex flex-wrap justify-end gap-2 shrink-0">
           {decisionError && <p role="alert" className="w-full text-xs text-red-600">{decisionError}</p>}
           {status?.toLowerCase() === 'pending' && <>
-            <button type="button" disabled={decisionLoading} onClick={() => decide('rejected')} className="px-5 py-2.5 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl disabled:opacity-50">Reject</button>
-            <button type="button" disabled={decisionLoading} onClick={() => decide('approved')} className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl disabled:opacity-50">Approve</button>
+            <button type="button" disabled={decisionLoading || !aiComplete} onClick={() => decide('rejected')} className="px-5 py-2.5 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl disabled:opacity-50">Reject</button>
+            <button type="button" disabled={decisionLoading || !aiComplete} onClick={() => decide('approved')} className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl disabled:opacity-50">Approve</button>
           </>}
           <button
             type="button"

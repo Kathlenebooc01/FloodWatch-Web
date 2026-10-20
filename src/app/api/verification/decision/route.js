@@ -15,10 +15,13 @@ async function decideWithoutMigration(userId, verificationId, decision) {
   }
 
   const { data: submission, error: readError } = await serviceDb.from('id_verification')
-    .select('id_verification_id, user_id, status').eq('id_verification_id', verificationId).single();
+    .select('id_verification_id, user_id, status, ai_is_valid, ai_confidence_score, ai_insight').eq('id_verification_id', verificationId).single();
   if (readError || !submission) return { error: 'Verification request not found', status: 404 };
   if (submission.status?.toLowerCase() !== 'pending') {
     return { error: 'Verification request has already been reviewed', status: 409 };
+  }
+  if (typeof submission.ai_is_valid !== 'boolean' || submission.ai_confidence_score == null || !submission.ai_insight?.trim()) {
+    return { error: 'AI verification must complete before a decision', status: 409 };
   }
 
   const { data: citizen, error: citizenError } = await serviceDb.from('profiles')
