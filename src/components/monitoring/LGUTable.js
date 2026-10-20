@@ -341,6 +341,7 @@ export default function LGUTable() {
   const [isLoadingDistress, setIsLoadingDistress] = useState(() => initialDistress.length === 0)
   const [isSubmittingReport, setIsSubmittingReport] = useState(false)
   const [isSubmittingDistress, setIsSubmittingDistress] = useState(false)
+  const [rejectingDistressId, setRejectingDistressId] = useState(null)
 
   const [reportSeenAt, setReportSeenAt] = useState(null)
   const [reportSeenReady, setReportSeenReady] = useState(false)
@@ -641,6 +642,7 @@ export default function LGUTable() {
   };
 
   const handleCloseDistressModal = () => {
+    setRejectingDistressId(null);
     setIsDistressModalOpen(false);
     setSelectedSignal(null);
   };
@@ -860,15 +862,15 @@ export default function LGUTable() {
   };
 
   // ── Database Action for Distress / Escalation Signals ──
-  const handleDistressStatusTransition = async (targetStatus) => {
-    if (!selectedSignal || isSubmittingDistress) return;
+  const handleDistressStatusTransition = async (targetStatus, distressId = selectedSignal?.distress_id) => {
+    if (!selectedSignal || selectedSignal.distress_id !== distressId || isSubmittingDistress) return;
     setIsSubmittingDistress(true);
 
     try {
       const now = new Date().toISOString();
       const { error } = targetStatus === "Acknowledged"
-        ? await supabase.rpc("verify_distress_signal", { p_distress_id: selectedSignal.distress_id })
-        : await supabase.rpc("reject_distress_signal", { p_distress_id: selectedSignal.distress_id });
+        ? await supabase.rpc("verify_distress_signal", { p_distress_id: distressId })
+        : await supabase.rpc("reject_distress_signal", { p_distress_id: distressId });
 
       if (error) {
         console.error("Error updating distress_signals:", error.message);
@@ -885,6 +887,7 @@ export default function LGUTable() {
         acknowledged_at: targetStatus === "Acknowledged" ? now : selectedSignal.acknowledged_at
       };
       setSelectedSignal(updated);
+      if (targetStatus === "Rejected") setRejectingDistressId(null);
 
       setDistressSignals((prev) => {
         const next = prev.map((s) => (s.distress_id === updated.distress_id ? updated : s));
@@ -1860,7 +1863,7 @@ export default function LGUTable() {
                         {/* Reject Button */}
                         <button
                           id="btn-reject-distress"
-                          onClick={() => handleDistressStatusTransition("Rejected")}
+                          onClick={() => setRejectingDistressId(selectedSignal.distress_id)}
                           disabled={isSubmittingDistress}
                           className="flex-1 py-3.5 px-4 bg-white hover:bg-red-50 text-red-700 border-2 border-red-300 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
                         >
@@ -1883,6 +1886,19 @@ export default function LGUTable() {
             </div>
           </SideModal>
         </>
+      )}
+
+      {rejectingDistressId && selectedSignal?.distress_id === rejectingDistressId && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-labelledby="reject-escalation-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 id="reject-escalation-title" className="text-lg font-bold text-gray-900">Reject Escalation Report</h2>
+            <p className="mt-3 text-sm text-gray-600">Are you sure you want to reject this escalation report? This action will update the report status to Rejected.</p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setRejectingDistressId(null)} disabled={isSubmittingDistress} className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 disabled:opacity-60">Cancel</button>
+              <button type="button" onClick={() => handleDistressStatusTransition("Rejected", rejectingDistressId)} disabled={isSubmittingDistress} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">Confirm Rejection</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Image Fullscreen Lightbox ── */}

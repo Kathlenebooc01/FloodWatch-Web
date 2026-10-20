@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import BannerModal from "@/components/Modal/BannerModal"
-import { ShieldAlert, MapPin, Volume2, X } from "lucide-react"
+import { ShieldAlert, MapPin, X } from "lucide-react"
 import { supabase } from "@/supabase/util/supabase"
 
 const isNewEmergency = row => (row.status || '').toLowerCase() === 'pending'
@@ -11,8 +11,8 @@ const isNewEmergency = row => (row.status || '').toLowerCase() === 'pending'
 export default function DistressAlarmBanner() {
   const router = useRouter()
   const [alerts, setAlerts] = useState([])
-  const [soundBlocked, setSoundBlocked] = useState(false)
   const audioRef = useRef(null)
+  const playPendingRef = useRef(false)
   const seenRef = useRef(new Set())
   const pendingRef = useRef(new Set())
   const seenAtRef = useRef(null)
@@ -26,24 +26,38 @@ export default function DistressAlarmBanner() {
       audioRef.current.currentTime = 0
       audioRef.current = null
     }
-    setSoundBlocked(false)
+    playPendingRef.current = false
   }, [])
 
   const startAlarm = useCallback(async () => {
     if (!pendingRef.current.size) return
     if (!audioRef.current) {
       audioRef.current = new Audio('/sfx/TF022.WAV')
-      audioRef.current.loop = false
+      audioRef.current.loop = true
     }
     const audio = audioRef.current
-    if (!audio.paused) return
+    if (!audio.paused || playPendingRef.current) return
+    playPendingRef.current = true
     try {
       await audio.play()
-      if (audioRef.current === audio && pendingRef.current.size) setSoundBlocked(false)
     } catch {
-      if (audioRef.current === audio && pendingRef.current.size) setSoundBlocked(true)
+      // A browser may defer playback until the next user interaction.
+    } finally {
+      playPendingRef.current = false
     }
   }, [])
+
+  useEffect(() => {
+    const retryAlarm = () => {
+      if (pendingRef.current.size && audioRef.current?.paused) void startAlarm()
+    }
+    window.addEventListener('pointerdown', retryAlarm)
+    window.addEventListener('keydown', retryAlarm)
+    return () => {
+      window.removeEventListener('pointerdown', retryAlarm)
+      window.removeEventListener('keydown', retryAlarm)
+    }
+  }, [startAlarm])
 
   useEffect(() => {
     let active = true
@@ -149,6 +163,7 @@ export default function DistressAlarmBanner() {
   const alert = alerts[0]
   if (!alert) return null
   const viewAlert = () => {
+    stopAlarm()
     router.push(`/provincial-admin/monitoring/lgu-monitoring?distressId=${encodeURIComponent(alert.id)}`)
   }
 
@@ -171,7 +186,6 @@ export default function DistressAlarmBanner() {
         </div>
         <div className="flex items-center justify-between gap-2">
           <button type="button" onClick={event => { event.stopPropagation(); viewAlert() }} className="bg-white text-red-700 px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-50">View Distress Signal</button>
-          {soundBlocked && <button type="button" onClick={event => { event.stopPropagation(); void startAlarm() }} className="flex items-center gap-1 text-xs font-semibold text-white"><Volume2 className="size-4" /> Enable sound</button>}
         </div>
       </div>
     </BannerModal>
