@@ -1,4 +1,4 @@
-const PAGE_KEYS = ['lgu', 'request', 'notification'];
+const PAGE_KEYS = ['lgu', 'request', 'notification', 'distress'];
 
 export async function getProvincialPageViewedAt(db, pageKey) {
   if (!PAGE_KEYS.includes(pageKey)) throw new Error('Invalid page key');

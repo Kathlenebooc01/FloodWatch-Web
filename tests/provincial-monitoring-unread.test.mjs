@@ -42,7 +42,7 @@ function mockDatabase(counts, errorAt = -1) {
 
 test('Reports and LGU unread counts use separate submitters and visit times', async () => {
   const db = mockDatabase([2, 3, 4])
-  const counts = await fetchProvincialMonitoringUnreadCounts(db, 'report-visit', 'lgu-visit')
+  const counts = await fetchProvincialMonitoringUnreadCounts(db, 'report-visit', 'lgu-visit', 'distress-visit')
 
   assert.deepEqual(counts, { reportCount: 2, lguCount: 7 })
   assert.deepEqual(db.queries.map(({ table }) => table), [
@@ -57,7 +57,7 @@ test('Reports and LGU unread counts use separate submitters and visit times', as
   }
   assert.deepEqual(db.queries.map(({ filters }) =>
     filters.find((filter) => filter[1] === 'created_at')?.[2]),
-  ['report-visit', 'lgu-visit', 'lgu-visit'])
+  ['report-visit', 'lgu-visit', 'distress-visit'])
 })
 
 test('A failed count query is not treated as an empty inbox', async () => {

@@ -1,6 +1,6 @@
 const LGU_ROLES = ['lgu_headmaster', 'lgu_frontliner']
 
-export async function fetchProvincialMonitoringUnreadCounts(db, reportViewedAt, lguViewedAt) {
+export async function fetchProvincialMonitoringUnreadCounts(db, reportViewedAt, lguViewedAt, distressViewedAt) {
   let citizenReports = db
     .from('incident_report')
     .select('report_id, profiles!user_id!inner(role)', { count: 'exact', head: true })
@@ -19,8 +19,8 @@ export async function fetchProvincialMonitoringUnreadCounts(db, reportViewedAt, 
   if (reportViewedAt) citizenReports = citizenReports.gt('created_at', reportViewedAt)
   if (lguViewedAt) {
     lguReports = lguReports.gt('created_at', lguViewedAt)
-    lguDistress = lguDistress.gt('created_at', lguViewedAt)
   }
+  if (distressViewedAt) lguDistress = lguDistress.gt('created_at', distressViewedAt)
 
   const results = await Promise.all([citizenReports, lguReports, lguDistress])
   const failed = results.find(({ error }) => error)

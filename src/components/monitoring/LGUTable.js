@@ -18,6 +18,7 @@ import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
 import TablePagination from "@/components/table/TablePagination"
 import { supabase } from "@/supabase/util/supabase"
 import { ensureFreshSession } from "@/lib/auth/ensureFreshSession.mjs"
+import { getProvincialPageViewedAt, markProvincialPageSeen } from "@/lib/notifications/provincialPageSeen.mjs"
 import { buildReportHierarchy, fetchAllIncidentReports } from "@/lib/situational-report-hierarchy.mjs"
 import { getIncidentCoordinates } from "@/lib/reports/incidentCoordinates.mjs"
 import { hasNewReports, newestReportTimestamp } from "@/lib/notifications/reportSeen.mjs"
@@ -77,7 +78,7 @@ const getInitialDistressSignals = () => {
 
 // Helper to calculate human readable relative time
 const formatRelativeTime = (dateString) => {
-  if (!dateString) return "—";
+  if (!dateString) return "â€”";
   const date = new Date(dateString);
   const now = new Date();
   const diffInMs = now.getTime() - date.getTime();
@@ -322,9 +323,30 @@ export default function LGUTable() {
   const searchParams = useSearchParams()
   const requestedDistressId = searchParams.get("distressId")
   const [activeTab, setActiveTab] = useState("Report Table")
+  const [distressViewedAt, setDistressViewedAt] = useState(null)
+  const [distressSeenReady, setDistressSeenReady] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    getProvincialPageViewedAt(supabase, 'distress')
+      .then(viewedAt => {
+        if (active) setDistressViewedAt(previous =>
+          previous && Date.parse(previous) > Date.parse(viewedAt) ? previous : viewedAt)
+      })
+      .catch(error => console.error('Unable to load Distress Signals seen state:', error))
+      .finally(() => { if (active) setDistressSeenReady(true) })
+    return () => { active = false }
+  }, [])
 
   useEffect(() => {
     if (activeTab === "Distress Signals") {
+      queueMicrotask(() => setDistressViewedAt(new Date().toISOString()))
+      markProvincialPageSeen(supabase, 'distress')
+        .then(viewedAt => {
+          if (viewedAt) setDistressViewedAt(previous =>
+            previous && Date.parse(previous) > Date.parse(viewedAt) ? previous : viewedAt)
+        })
+        .catch(error => console.error('Unable to save Distress Signals visit:', error))
       window.dispatchEvent(new Event('floodwatch:distress-page-opened'))
     }
   }, [activeTab])
@@ -361,16 +383,6 @@ export default function LGUTable() {
     }).catch(() => { if (active) setReportSeenReady(true) })
     return () => { active = false }
   }, [])
-
-  const [viewedDistressIds, setViewedDistressIds] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem("floodwatch_viewed_distress");
-        return stored ? JSON.parse(stored).map(String) : [];
-      } catch (e) {}
-    }
-    return [];
-  })
 
   // Expand/Collapse state for Municipality Groups
   const [expandedMunicipalities, setExpandedMunicipalities] = useState({})
@@ -503,7 +515,7 @@ export default function LGUTable() {
         }
       } catch (err) {
         if (isMounted) setReportFetchError("Unable to refresh reports. Please try again shortly.");
-        console.error("🚨 Error in fetchAllData:", err);
+        console.error("ðŸš¨ Error in fetchAllData:", err);
       } finally {
         if (isMounted) {
           setIsLoadingReports(false);
@@ -569,7 +581,7 @@ export default function LGUTable() {
     return Object.values(groups);
   }, [distressSignals]);
 
-  // Unviewed Report Count for Red Dot — shows for ANY report not yet clicked/viewed
+  // Unviewed Report Count for Red Dot â€” shows for ANY report not yet clicked/viewed
   const hasUnviewedReports = useMemo(() => {
     return reportSeenReady && reportsLoaded && activeTab !== "Report Table" &&
       hasNewReports(reports, reportSeenAt);
@@ -589,24 +601,11 @@ export default function LGUTable() {
       .finally(() => { reportSeenWriteInFlight.current = false })
   }, [activeTab, reports, reportsLoaded, reportSeenReady, reportLoadVersion]);
 
-  // Unviewed Distress / Escalation Count for Red Dot — shows for ANY signal not yet clicked/viewed
+  // Show the red dot only for signals submitted after this admin opened the tab.
   const hasUnviewedDistress = useMemo(() => {
-    return distressSignals.some((d) => !viewedDistressIds.includes(String(d.distress_id)));
-  }, [distressSignals, viewedDistressIds]);
-
-  // Mark distress as viewed so red dot disappears (always store as string)
-  const markDistressAsViewed = (distressId) => {
-    if (!distressId) return;
-    const idStr = String(distressId);
-    if (viewedDistressIds.includes(idStr)) return;
-    const updated = [...viewedDistressIds, idStr];
-    setViewedDistressIds(updated);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("floodwatch_viewed_distress", JSON.stringify(updated));
-      } catch (e) {}
-    }
-  };
+    return distressSeenReady && distressSignals.some(d =>
+      !distressViewedAt || Date.parse(d.created_at) > Date.parse(distressViewedAt));
+  }, [distressSignals, distressViewedAt, distressSeenReady]);
 
   // Toggle dropdown for a municipality
   const toggleMunicipality = (muniName) => {
@@ -636,7 +635,6 @@ export default function LGUTable() {
 
   // Open / Close Distress Modal
   const handleOpenDistressModal = (item) => {
-    markDistressAsViewed(item.distress_id);
     setSelectedSignal(item);
     setIsDistressModalOpen(true);
   };
@@ -719,7 +717,7 @@ export default function LGUTable() {
     );
   };
 
-  // ── Database Action: Accept Report -> Status becomes "Verified" in DB ──
+  // â”€â”€ Database Action: Accept Report -> Status becomes "Verified" in DB â”€â”€
   const handleAcceptReport = async () => {
     if (!selectedReport || isSubmittingReport) return;
     setIsSubmittingReport(true);
@@ -739,7 +737,7 @@ export default function LGUTable() {
         .eq("report_id", selectedReport.report_id);
 
       if (error) {
-        console.error("🚨 Error accepting report:", error.message);
+        console.error("ðŸš¨ Error accepting report:", error.message);
         alert(`Error accepting report: ${error.message}`);
       } else {
         if (selectedReport.user_id) {
@@ -806,7 +804,7 @@ export default function LGUTable() {
     }
   };
 
-  // ── Database Action: Reject Report -> Status becomes "Rejected" in DB ──
+  // â”€â”€ Database Action: Reject Report -> Status becomes "Rejected" in DB â”€â”€
   const handleRejectReport = async () => {
     if (!selectedReport || isSubmittingReport) return;
     setIsSubmittingReport(true);
@@ -826,7 +824,7 @@ export default function LGUTable() {
         .eq("report_id", selectedReport.report_id);
 
       if (error) {
-        console.error("🚨 Error rejecting report:", error.message);
+        console.error("ðŸš¨ Error rejecting report:", error.message);
         alert(`Error rejecting report: ${error.message}`);
       } else {
         if (selectedReport.user_id) {
@@ -861,7 +859,7 @@ export default function LGUTable() {
     }
   };
 
-  // ── Database Action for Distress / Escalation Signals ──
+  // â”€â”€ Database Action for Distress / Escalation Signals â”€â”€
   const handleDistressStatusTransition = async (targetStatus, distressId = selectedSignal?.distress_id) => {
     if (!selectedSignal || selectedSignal.distress_id !== distressId || isSubmittingDistress) return;
     setIsSubmittingDistress(true);
@@ -933,7 +931,7 @@ export default function LGUTable() {
 
   return (
     <div className="grid gap-4">
-      {/* ── Header with Flex & Justify-Between Toggle ── */}
+      {/* â”€â”€ Header with Flex & Justify-Between Toggle â”€â”€ */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2 border-b border-gray-100">
         <div className="flex items-center gap-2">
           <ShieldAlert className="size-6 text-primary" />
@@ -943,7 +941,7 @@ export default function LGUTable() {
         </div>
 
         <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-          {/* ── Toggle Buttons with Active Red Dot Tracker ── */}
+          {/* â”€â”€ Toggle Buttons with Active Red Dot Tracker â”€â”€ */}
           <ToogleButtonLayout className="w-full sm:w-auto">
             <ToogleButton
               active={activeTab === "Report Table"}
@@ -985,12 +983,12 @@ export default function LGUTable() {
         </div>
       </div>
 
-      {/* ── Table Container ── */}
+      {/* â”€â”€ Table Container â”€â”€ */}
       <Table>
         <TableScrollWrapper>
           <DataTable>
             {activeTab === "Report Table" ? (
-              // ── 1. REPORT HIERARCHY TABLE (Situational Reports) ──
+              // â”€â”€ 1. REPORT HIERARCHY TABLE (Situational Reports) â”€â”€
               <>
                 <TableHead>
                   <tr>
@@ -1059,7 +1057,7 @@ export default function LGUTable() {
                             </TableData>
 
                             <TableDataMuted className="text-xs font-mono font-bold">
-                              {latest?.formatted_id || "—"}
+                              {latest?.formatted_id || "â€”"}
                             </TableDataMuted>
 
                             <TableData>
@@ -1161,7 +1159,7 @@ export default function LGUTable() {
                                     className="hover:bg-blue-50/50 cursor-pointer transition-colors border-b border-gray-100 bg-white">
                                     <TableData className="pl-16 py-3">
                                       <div className="flex items-center gap-2">
-                                        <span className="text-gray-400" aria-hidden="true">{updateIndex === item.updates.length - 1 ? "└──" : "├──"}</span>
+                                        <span className="text-gray-400" aria-hidden="true">{updateIndex === item.updates.length - 1 ? "â””â”€â”€" : "â”œâ”€â”€"}</span>
                                         <span className="font-bold text-gray-800 text-sm">Update {updateIndex + 1}</span>
                                         <span className="text-xs text-gray-500">{update.clean_title}</span>
                                       </div>
@@ -1193,7 +1191,7 @@ export default function LGUTable() {
                 </tbody>
               </>
             ) : (
-              // ── 2. DISTRESS SIGNALS TABLE (Same Hierarchy Design in Red Theme) ──
+              // â”€â”€ 2. DISTRESS SIGNALS TABLE (Same Hierarchy Design in Red Theme) â”€â”€
               <>
                 <TableHead>
                   <tr>
@@ -1254,7 +1252,7 @@ export default function LGUTable() {
                             </TableData>
 
                             <TableDataMuted className="text-xs font-mono font-bold text-red-700">
-                              {latest?.formatted_id || "—"}
+                              {latest?.formatted_id || "â€”"}
                             </TableDataMuted>
 
                             <TableData>
@@ -1340,7 +1338,7 @@ export default function LGUTable() {
           </DataTable>
         </TableScrollWrapper>
 
-        {/* ── Table Pagination ── */}
+        {/* â”€â”€ Table Pagination â”€â”€ */}
         {activeTab === "Report Table" ? (
           <TablePagination
             currentPage={reportPage}
@@ -1358,9 +1356,9 @@ export default function LGUTable() {
         )}
       </Table>
 
-      {/* ══════════════════════════════════════════════════════════════════ */}
-      {/* ── SIDE DRAWER MODAL FOR INCIDENT REPORT ──                     */}
-      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      {/* â”€â”€ SIDE DRAWER MODAL FOR INCIDENT REPORT â”€â”€                     */}
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {isReportModalOpen && selectedReport && (
         <>
           <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-xs transition-opacity" onClick={handleCloseReportModal} />
@@ -1368,7 +1366,7 @@ export default function LGUTable() {
           <SideModal className="z-50 !w-full sm:!w-[480px] md:!w-[520px] bg-white shadow-2xl flex flex-col h-full">
             <div className="flex flex-col h-full bg-white overflow-y-auto">
 
-              {/* ── Header Area ── */}
+              {/* â”€â”€ Header Area â”€â”€ */}
               <div className="p-6 pb-4 border-b border-gray-100 shrink-0">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
@@ -1402,7 +1400,7 @@ export default function LGUTable() {
                 </div>
               </div>
 
-              {/* ── Scrollable Body Content ── */}
+              {/* â”€â”€ Scrollable Body Content â”€â”€ */}
               <div className="p-6 space-y-6 flex-1">
 
                 {/* 1. Officer / Reporter Profile Card */}
@@ -1513,7 +1511,7 @@ export default function LGUTable() {
                     </h3>
                     <span className="text-xs font-mono font-bold text-blue-600">
                       {displayedCoordinates
-                        ? `${Math.abs(displayedCoordinates.latitude).toFixed(10)}° ${displayedCoordinates.latitude < 0 ? "S" : "N"}, ${Math.abs(displayedCoordinates.longitude).toFixed(10)}° ${displayedCoordinates.longitude < 0 ? "W" : "E"}`
+                        ? `${Math.abs(displayedCoordinates.latitude).toFixed(10)}Â° ${displayedCoordinates.latitude < 0 ? "S" : "N"}, ${Math.abs(displayedCoordinates.longitude).toFixed(10)}Â° ${displayedCoordinates.longitude < 0 ? "W" : "E"}`
                         : "Unavailable"}
                     </span>
                   </div>
@@ -1615,7 +1613,7 @@ export default function LGUTable() {
 
               </div>
 
-              {/* ── Footer Actions (Accept or Reject Buttons) ── */}
+              {/* â”€â”€ Footer Actions (Accept or Reject Buttons) â”€â”€ */}
               <div className="p-6 pt-4 border-t border-gray-100 bg-gray-50/50 shrink-0 space-y-2.5">
                 {(() => {
                   if (selectedReport.parent_report_id) {
@@ -1670,7 +1668,7 @@ export default function LGUTable() {
                     );
                   }
 
-                  // Default: Pending — show Accept / Reject buttons
+                  // Default: Pending â€” show Accept / Reject buttons
                   return (
                     <>
                       <div className="flex items-center gap-3">
@@ -1715,9 +1713,9 @@ export default function LGUTable() {
         </>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════ */}
-      {/* ── SIDE DRAWER MODAL FOR EMERGENCY DISTRESS / ESCALATION ──     */}
-      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      {/* â”€â”€ SIDE DRAWER MODAL FOR EMERGENCY DISTRESS / ESCALATION â”€â”€     */}
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {isDistressModalOpen && selectedSignal && (
         <>
           <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-xs transition-opacity" onClick={handleCloseDistressModal} />
@@ -1789,7 +1787,7 @@ export default function LGUTable() {
                       <Calendar className="size-3.5" /> Transmitted At:
                     </span>
                     <span className="font-bold text-gray-900">
-                      {selectedSignal.created_at ? new Date(selectedSignal.created_at).toLocaleString() : "—"}
+                      {selectedSignal.created_at ? new Date(selectedSignal.created_at).toLocaleString() : "â€”"}
                     </span>
                   </div>
                   {selectedSignal.acknowledged_at && (
@@ -1805,7 +1803,7 @@ export default function LGUTable() {
                 </div>
               </div>
 
-              {/* Footer Action Buttons — Accept / Reject for Distress Signals */}
+              {/* Footer Action Buttons â€” Accept / Reject for Distress Signals */}
               <div className="p-6 pt-4 border-t border-red-100 bg-red-50/30 shrink-0 space-y-2.5">
                 {(() => {
                   const st = (selectedSignal.status || "pending").toLowerCase();
@@ -1841,7 +1839,7 @@ export default function LGUTable() {
                     );
                   }
 
-                  // Default: Pending — show Accept / Reject
+                  // Default: Pending â€” show Accept / Reject
                   return (
                     <>
                       <div className="flex items-center gap-3">
@@ -1901,7 +1899,7 @@ export default function LGUTable() {
         </div>
       )}
 
-      {/* ── Image Fullscreen Lightbox ── */}
+      {/* â”€â”€ Image Fullscreen Lightbox â”€â”€ */}
       {previewImage && (
         <div
           className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer"

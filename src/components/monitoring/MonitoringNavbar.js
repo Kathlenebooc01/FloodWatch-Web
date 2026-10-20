@@ -50,14 +50,16 @@ export default function MonitoringNavbar() {
         setLguCount(0)
         return
       }
-      const [lastReportView, lastLguView] = await Promise.all([
+      const [lastReportView, lastLguView, lastDistressView] = await Promise.all([
         getProvincialReportViewedAt(supabase),
         getProvincialPageViewedAt(supabase, 'lgu'),
+        getProvincialPageViewedAt(supabase, 'distress'),
       ])
       const counts = await fetchProvincialMonitoringUnreadCounts(
         supabase,
         lastReportView,
-        lastLguView
+        lastLguView,
+        lastDistressView
       )
       if (fetchId !== latestFetch.current) return
       setReportCount(isViewingReport ? 0 : counts.reportCount)

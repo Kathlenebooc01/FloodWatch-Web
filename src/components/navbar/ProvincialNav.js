@@ -23,10 +23,11 @@ export default function ProvincialNav() {
         setRequestsCount(0)
         return
       }
-      const [lastReportView, lastLguView, lastRequestView] = await Promise.all([
+      const [lastReportView, lastLguView, lastRequestView, lastDistressView] = await Promise.all([
         getProvincialReportViewedAt(supabase),
         getProvincialPageViewedAt(supabase, 'lgu'),
         getProvincialPageViewedAt(supabase, 'request'),
+        getProvincialPageViewedAt(supabase, 'distress'),
       ])
 
       let reqQuery = supabase
@@ -36,7 +37,7 @@ export default function ProvincialNav() {
       if (lastRequestView) reqQuery = reqQuery.gt("created_at", lastRequestView)
 
       const [monitoring, reqRes] = await Promise.all([
-        fetchProvincialMonitoringUnreadCounts(supabase, lastReportView, lastLguView),
+        fetchProvincialMonitoringUnreadCounts(supabase, lastReportView, lastLguView, lastDistressView),
         reqQuery,
       ])
       if (reqRes.error) throw reqRes.error

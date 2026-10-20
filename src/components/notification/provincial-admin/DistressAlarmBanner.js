@@ -13,6 +13,8 @@ export default function DistressAlarmBanner() {
   const [alerts, setAlerts] = useState([])
   const audioRef = useRef(null)
   const playPendingRef = useRef(false)
+  const soundsQueuedRef = useRef(0)
+  const playNextRef = useRef(null)
   const seenRef = useRef(new Set())
   const pendingRef = useRef(new Set())
   const seenAtRef = useRef(null)
@@ -27,19 +29,24 @@ export default function DistressAlarmBanner() {
       audioRef.current = null
     }
     playPendingRef.current = false
+    soundsQueuedRef.current = 0
   }, [])
 
   const startAlarm = useCallback(async () => {
-    if (!pendingRef.current.size) return
+    if (!soundsQueuedRef.current) return
     if (!audioRef.current) {
       audioRef.current = new Audio('/sfx/TF022.WAV')
-      audioRef.current.loop = true
+      audioRef.current.onended = () => {
+        audioRef.current = null
+        void playNextRef.current?.()
+      }
     }
     const audio = audioRef.current
     if (!audio.paused || playPendingRef.current) return
     playPendingRef.current = true
     try {
       await audio.play()
+      if (audioRef.current === audio) soundsQueuedRef.current--
     } catch {
       // A browser may defer playback until the next user interaction.
     } finally {
@@ -48,8 +55,12 @@ export default function DistressAlarmBanner() {
   }, [])
 
   useEffect(() => {
+    playNextRef.current = startAlarm
+  }, [startAlarm])
+
+  useEffect(() => {
     const retryAlarm = () => {
-      if (pendingRef.current.size && audioRef.current?.paused) void startAlarm()
+      if (soundsQueuedRef.current && audioRef.current?.paused) void startAlarm()
     }
     window.addEventListener('pointerdown', retryAlarm)
     window.addEventListener('keydown', retryAlarm)
@@ -87,6 +98,7 @@ export default function DistressAlarmBanner() {
       if (!isNewEmergency(data) || Date.parse(data.created_at) <= Date.parse(seenAtRef.current)) return
 
       pendingRef.current.add(key)
+      soundsQueuedRef.current++
       setAlerts(previous => [...previous, {
         key, id, municipality: data.municipality.name, createdAt: data.created_at
       }])
