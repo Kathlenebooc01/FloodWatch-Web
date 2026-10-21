@@ -1159,7 +1159,6 @@ export default function LGUTable() {
                                     className="hover:bg-blue-50/50 cursor-pointer transition-colors border-b border-gray-100 bg-white">
                                     <TableData className="pl-16 py-3">
                                       <div className="flex items-center gap-2">
-                                        <span className="text-gray-400" aria-hidden="true">{updateIndex === item.updates.length - 1 ? "â””â”€â”€" : "â”œâ”€â”€"}</span>
                                         <span className="font-bold text-gray-800 text-sm">Update {updateIndex + 1}</span>
                                         <span className="text-xs text-gray-500">{update.clean_title}</span>
                                       </div>

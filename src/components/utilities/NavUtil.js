@@ -12,7 +12,8 @@ import ToogleButtonLayout from "../button/ToogleButtonLayout"
 const navLinks = [
   { name: "Dashboard", href: "/provincial-admin/utilities/dashboard" },
   { name: "Inventory", href: "/provincial-admin/utilities/inventory" },
-  { name: "Request", href: "/provincial-admin/utilities/request", badge: true }
+  { name: "Request", href: "/provincial-admin/utilities/request", badge: true },
+  { name: "Flagged LGUs", href: "/provincial-admin/utilities/flagged-lgus" }
 ]
 
 export default function NavUtil() {

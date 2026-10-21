@@ -18,6 +18,7 @@ export default function ViewRequesDetails({ id }) {
   const [request, setRequest] = useState(null)
   const [items, setItems] = useState([])
   const [allocations, setAllocations] = useState([])
+  const [activeFlag, setActiveFlag] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const isMountedRef = useRef(true)
@@ -33,19 +34,22 @@ export default function ViewRequesDetails({ id }) {
     currentFetch.current = controller
     if (isInitial) setIsLoading(true)
     try {
-      const [reqRes, itemsRes, allocRes] = await Promise.all([
+      const [reqRes, itemsRes, allocRes, flagRes] = await Promise.all([
         supabase.from('resource_requests')
-          .select('*, profiles:requested_by(id, municipality_or_city:municipality_id(name))')
+          .select('*, profiles:requested_by(id, full_name, role, municipality_or_city:municipality_id(name))')
           .eq('request_id', id).abortSignal(controller.signal).single(),
         supabase.from('resource_request_items').select('*, utilities:utilities_id(name, type)')
           .eq('request_id', id).abortSignal(controller.signal),
         supabase.from('resource_allocations').select('*, profiles:approved_by(full_name)')
           .eq('request_id', id).order('batch', { ascending: true }).abortSignal(controller.signal),
+        supabase.from('utility_overdue_flags').select('*').eq('request_id', id)
+          .is('cleared_at', null).maybeSingle().abortSignal(controller.signal),
       ])
       if (!isMountedRef.current || controller.signal.aborted) return
       if (!reqRes.error && reqRes.data) setRequest(reqRes.data)
       if (!itemsRes.error) setItems(itemsRes.data || [])
       if (!allocRes.error) setAllocations(allocRes.data || [])
+      if (!flagRes.error) setActiveFlag(flagRes.data)
     } catch (error) {
       if (!controller.signal.aborted) console.error(error)
     } finally {
@@ -75,6 +79,7 @@ export default function ViewRequesDetails({ id }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_requests', filter: 'request_id=eq.' + id }, scheduleRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_request_items', filter: 'request_id=eq.' + id }, scheduleRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_allocations', filter: 'request_id=eq.' + id }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'utility_overdue_flags', filter: 'request_id=eq.' + id }, scheduleRefresh)
       .subscribe()
     const refreshVisible = () => {
       if (document.visibilityState === 'visible') scheduleRefresh()
@@ -205,6 +210,11 @@ export default function ViewRequesDetails({ id }) {
                 onStatusChange={refetchData} 
                 onApprove={() => setIsModalOpen(true)}
                 userId={request?.profiles?.id}
+                headmasterName={request?.profiles?.full_name}
+                isHeadmaster={request?.profiles?.role === 'lgu_headmaster'}
+                municipality={request?.profiles?.municipality_or_city?.name}
+                items={items}
+                activeFlag={activeFlag}
             />
         </div>
         <ApprovedandDispatchSideModal 
