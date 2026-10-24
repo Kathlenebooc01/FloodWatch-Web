@@ -1,5 +1,9 @@
 let refreshInFlight = null;
 
+export function isAuthSessionMissing(error) {
+  return error?.name === 'AuthSessionMissingError' || error?.code === 'session_not_found';
+}
+
 // Share one refresh among the provincial counters and monitoring table.
 export async function ensureFreshSession(db) {
   const { data, error } = await db.auth.getSession();

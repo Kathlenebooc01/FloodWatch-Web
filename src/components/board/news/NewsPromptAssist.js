@@ -1,21 +1,24 @@
 "use client"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Sparkles, Loader2 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import TextArea from "@/components/forms/TextArea"
 import PrimaryButton from "@/components/button/PrimaryButton"
 
-export default function NewsPromptAssist({ isOpen, onClose, onGenerate, onGenerateStart, existingFields }) {
+export default function NewsPromptAssist({ isOpen, onClose, onGenerate, onGenerateStart, onGenerateEnd, existingFields }) {
+  const pendingRef = useRef(false)
   const [narration, setNarration] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
 
   const handleGenerate = async () => {
+    if (pendingRef.current) return
     if (!narration.trim()) {
       setError("Please describe the event first.")
       return
     }
 
+    pendingRef.current = true
     setIsLoading(true)
     setError("")
 
@@ -35,18 +38,22 @@ export default function NewsPromptAssist({ isOpen, onClose, onGenerate, onGenera
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || "Something went wrong. Please try again.")
+        setError(data.error || "Unable to generate the report at the moment. Please try again.")
         return
       }
 
-      if (data.fields) {
+      if (data.fields && Object.values(data.fields).some(value => typeof value === 'string' && value.trim())) {
         onGenerate(data.fields)
         setNarration("")
+      } else {
+        setError("Unable to generate the report at the moment. Please try again.")
       }
     } catch (err) {
-      setError("Network error. Please check your connection and try again.")
+      setError("Unable to generate the report at the moment. Please try again.")
     } finally {
+      pendingRef.current = false
       setIsLoading(false)
+      if (onGenerateEnd) onGenerateEnd()
     }
   }
 

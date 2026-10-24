@@ -7,7 +7,7 @@ import { supabase } from "@/supabase/util/supabase"
 import { getProvincialPageViewedAt, markProvincialPageSeen } from "@/lib/notifications/provincialPageSeen.mjs"
 import { fetchProvincialMonitoringUnreadCounts } from "@/lib/notifications/provincialMonitoringUnread.mjs"
 import { getProvincialReportViewedAt, markProvincialReportsSeen } from "@/lib/notifications/provincialReportSeen.mjs"
-import { ensureFreshSession } from "@/lib/auth/ensureFreshSession.mjs"
+import { ensureFreshSession, isAuthSessionMissing } from "@/lib/auth/ensureFreshSession.mjs"
 
 const navLinks = [
   { name: "Weather", href: "/provincial-admin/monitoring", exact: true },
@@ -65,6 +65,13 @@ export default function MonitoringNavbar() {
       setReportCount(isViewingReport ? 0 : counts.reportCount)
       setLguCount(isViewingLgu ? 0 : counts.lguCount)
     } catch (err) {
+      if (isAuthSessionMissing(err)) {
+        if (fetchId === latestFetch.current) {
+          setReportCount(0)
+          setLguCount(0)
+        }
+        return
+      }
       console.error("Error fetching monitoring tab counts:", err)
     }
   }, [isViewingReport, isViewingLgu])

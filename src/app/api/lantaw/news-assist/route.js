@@ -1,225 +1,62 @@
 import { NextResponse } from 'next/server'
 import { logAiError, logAiSuccess } from '@/lib/logs/apiLogger'
+import { generateNewsFields, NEWS_ASSIST_ERROR } from '@/lib/lantaw/news-assist.mjs'
 
-const GEMINI_API_KEY = process.env.GEMINI_LANTAW_AI
-const GEMINI_BACKUP_KEY = process.env.GEMINI_LANTAW_BACKUP_AI || process.env.GEMINI_LANTAW_AI
-const PRIMARY_MODEL = process.env.GEMINI_LANTAW_MODEL || 'gemini-3.1-flash-lite'
-const BACKUP_MODEL = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.5-flash-lite'
-const TERTIARY_MODEL = process.env.GEMINI_LANTAW_THIRD_MODEL || 'gemini-3.1-flash-lite-preview'
+export const maxDuration = 60
 
-export const maxDuration = 60;
-
-// --- LantawThinking: Guardrails ---
-function getGuardrails() {
-    return (
-        "\n\n--- STRICT DOMAIN RESTRICTIONS & GUARDRAILS ---\n" +
-        "1. NO WEB SEARCHING: You do not have internet access.\n" +
-        "2. CREATIVE AND GUIDANCE EXCEPTIONS: You ARE allowed to use your internal reasoning to generate content such as drafting news reports, writing professional articles, and expanding short narrations into full stories.\n" +
-        "3. DENIAL OF UNRELATED QUERIES: If the user's narration is completely nonsense or off-topic, return a JSON with an 'error' field explaining you are Lantaw AI.\n" +
-        "4. NO HALLUCINATIONS: Do not invent specific data, sensor readings, or statistics not mentioned by the user."
-    )
-}
-
-// --- LantawPrompt: Build the system persona ---
-function buildSystemPersona() {
-    return (
-        "You are Lantaw AI, the intelligent assistant for the FloodWatch Disaster Management Platform. " +
-        "You are helping a Provincial Admin write a news board article. " +
-        "Be direct, professional, and produce high-quality news writing."
-    )
-}
-
-// --- LantawNewsAssist: News field generation instructions ---
-function getNewsAssistInstructions(existingFields) {
-    const fieldsToGenerate = []
-    const skipInfo = []
-
-    if (!existingFields?.headline?.trim()) {
-        fieldsToGenerate.push('"headline": "A concise, professional headline for the news article"')
-    } else {
-        skipInfo.push(`- headline is already set to: "${existingFields.headline}"`)
-    }
-
-    const hasTags = Array.isArray(existingFields?.tag) 
-        ? existingFields.tag.length > 0 
-        : !!existingFields?.tag?.trim()
-
-    if (!hasTags) {
-        fieldsToGenerate.push('"tag": "A single relevant one-word category tag (e.g. Flood, Storm, Rescue, Weather, Alert, Emergency)"')
-    } else {
-        const tagText = Array.isArray(existingFields.tag) ? existingFields.tag.join(', ') : existingFields.tag
-        skipInfo.push(`- tag is already set to: "${tagText}"`)
-    }
-
-    if (!existingFields?.referenceLink?.trim()) {
-        fieldsToGenerate.push('"referenceLink": "Leave as empty string since you cannot generate real URLs"')
-    } else {
-        skipInfo.push(`- referenceLink is already set to: "${existingFields.referenceLink}"`)
-    }
-
-    if (!existingFields?.detailedContent?.trim()) {
-        fieldsToGenerate.push('"detailedContent": "A well-written, professional, detailed news report (2-4 paragraphs) expanding on the narration"')
-    } else {
-        skipInfo.push(`- detailedContent is already set to: "${existingFields.detailedContent}"`)
-    }
-
-    const fieldsJson = fieldsToGenerate.join(",\n  ")
-    const skipText = skipInfo.length > 0 ? skipInfo.join("\n") : "None — all fields need to be generated."
-
-    return (
-        "\n\n--- NEWS ASSIST INSTRUCTIONS ---\n" +
-        "You are helping a Provincial Admin write a news board article for the FloodWatch platform.\n" +
-        "The admin has provided a short narration or summary of the event. Your task is to generate " +
-        "structured content to fill in the news form.\n\n" +
-        "IMPORTANT RULES:\n" +
-        "1. Return ONLY a valid raw JSON object. No markdown, no code blocks, no conversational text.\n" +
-        "2. The JSON must contain ONLY the fields that need to be generated (listed below).\n" +
-        "3. Do NOT include fields that are already filled in.\n" +
-        "4. The 'detailedContent' should be a professional, well-structured news report.\n" +
-        "5. The 'headline' should be concise and attention-grabbing but professional.\n" +
-        "6. The 'tag' must be exactly ONE word — a category label.\n" +
-        "7. The 'referenceLink' should always be an empty string since you cannot generate real URLs.\n" +
-        "8. Do NOT hallucinate specific data, locations, or statistics not mentioned in the narration.\n\n" +
-        `FIELDS ALREADY FILLED (SKIP THESE):\n${skipText}\n\n` +
-        `FIELDS TO GENERATE (include ONLY these in your JSON):\n{\n  ${fieldsJson}\n}\n`
-    )
-}
-
-// --- Gemini API call with automatic retries ---
-async function callGemini(prompt, model, apiKey = GEMINI_API_KEY, maxRetries = 2) {
-    const keyToUse = apiKey || GEMINI_API_KEY
-    if (!keyToUse) {
-        throw new Error("GEMINI_LANTAW_AI environment variable is not configured. Please add your Google Gemini API key to .env.local.")
-    }
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keyToUse}`
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    temperature: 0.3,
-                    maxOutputTokens: 2048,
-                    responseMimeType: "application/json",
-                }
-            })
-        })
-
-        if (!response.ok) {
-            const errorBody = await response.text()
-            if (response.status === 503 && attempt < maxRetries) {
-                // High demand: wait 2 seconds and retry transparently
-                console.warn(`[Lantaw] 503 High Demand on ${model}, retrying (attempt ${attempt + 1}/${maxRetries})...`)
-                await new Promise(resolve => setTimeout(resolve, 2000))
-                continue
-            }
-            throw new Error(`Gemini API error (${model}): ${response.status} - ${errorBody}`)
-        }
-
-        const data = await response.json()
-        return data?.candidates?.[0]?.content?.parts?.[0]?.text || ""
-    }
-}
-
-// --- Main API route handler ---
 export async function POST(request) {
-    try {
-        const { narration, existingFields } = await request.json()
-
-        if (!narration || narration.trim().length < 5) {
-            return NextResponse.json({ error: "Please provide a more detailed narration." }, { status: 400 })
-        }
-
-        if (!GEMINI_API_KEY && !GEMINI_BACKUP_KEY) {
-            const missingMsg = "GEMINI_LANTAW_AI is missing in .env.local. Please add your Google Gemini API key to .env.local (e.g. GEMINI_LANTAW_AI=\"AIzaSy...\")."
-            await logAiError("Lantaw News Assist", missingMsg)
-            return NextResponse.json({ error: missingMsg }, { status: 503 })
-        }
-
-        // Step 1: LantawThinking — Pre-filter
-        const queryLower = narration.toLowerCase()
-        const domainKeywords = [
-            "flood", "weather", "rain", "temperature", "wind", "storm", "typhoon", "water",
-            "level", "alert", "distress", "emergency", "incident", "hazard", "report",
-            "rescue", "help", "generate", "write", "news", "update", "advisory",
-            "evacuation", "damage", "casualty", "relief", "disaster"
-        ]
-
-        // Allow short narrations through, check longer ones
-        if (narration.split(' ').length > 3) {
-            const hasRelevantKeyword = domainKeywords.some(word => queryLower.includes(word))
-            if (!hasRelevantKeyword) {
-                return NextResponse.json({
-                    error: "Your narration doesn't seem related to disaster management or news reporting. Please provide a relevant event description."
-                }, { status: 400 })
-            }
-        }
-
-        // Step 2: Build the full prompt (LantawPrompt + LantawThinking + LantawNewsAssist)
-        const fullPrompt = [
-            buildSystemPersona(),
-            getGuardrails(),
-            getNewsAssistInstructions(existingFields || {}),
-            `\n--- ADMIN'S NARRATION ---\n${narration.trim()}`
-        ].join('\n')
-
-        // Step 3: LantawConnect — Call Gemini with primary model, fallback to backup
-        let aiResponse
-        let startTime = Date.now()
-        let latency = 0
-        let finalStatus = 200
-        
-        try {
-            aiResponse = await callGemini(fullPrompt, PRIMARY_MODEL, GEMINI_API_KEY)
-            latency = Date.now() - startTime
-        } catch (primaryError) {
-            console.warn(`Primary model (${PRIMARY_MODEL}) failed, falling back to ${BACKUP_MODEL} with backup key:`, primaryError.message)
-            const match = primaryError.message.match(/\b(4\d{2}|5\d{2})\b/)
-            const errCode = match ? match[0] : 500
-            await logAiError("Lantaw News Assist", `Primary model (${PRIMARY_MODEL}) failed: ${primaryError.message} | STATUS:${errCode} | LATENCY:${Date.now() - startTime}ms`)
-
-            try {
-                startTime = Date.now()
-                aiResponse = await callGemini(fullPrompt, BACKUP_MODEL, GEMINI_BACKUP_KEY)
-                latency = Date.now() - startTime
-            } catch (backupError) {
-                console.warn(`Backup model (${BACKUP_MODEL}) failed, trying tertiary (${TERTIARY_MODEL}):`, backupError.message)
-                try {
-                    startTime = Date.now()
-                    aiResponse = await callGemini(fullPrompt, TERTIARY_MODEL, GEMINI_API_KEY || GEMINI_BACKUP_KEY)
-                    latency = Date.now() - startTime
-                } catch (tertiaryError) {
-                    latency = Date.now() - startTime
-                    finalStatus = 503
-                    console.error("All AI fallback models failed in news assist:", tertiaryError.message)
-                    await logAiError("Lantaw News Assist", `All AI models failed. Latest error (${TERTIARY_MODEL}): ${tertiaryError.message} | STATUS:${finalStatus} | LATENCY:${latency}ms`)
-                    return NextResponse.json({ error: "AI services are currently busy on Google's side. Please try again in a few moments." }, { status: 503 })
-                }
-            }
-        }
-
-        // Step 4: Clean and parse the JSON response
-        // Strip markdown code block wrappers if present
-        let cleanedResponse = aiResponse.trim()
-        cleanedResponse = cleanedResponse.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
-
-        try {
-            const parsedFields = JSON.parse(cleanedResponse)
-            await logAiSuccess("Lantaw News Assist", `Drafted news board article successfully | STATUS:${finalStatus} | LATENCY:${latency}ms`)
-            return NextResponse.json({ fields: parsedFields })
-        } catch (parseError) {
-            console.error("Failed to parse Lantaw news assist response:", cleanedResponse)
-            await logAiError("Lantaw News Assist", `Failed to parse AI JSON response: ${parseError.message}`)
-            return NextResponse.json({
-                error: "Lantaw generated a response but it couldn't be parsed. Please try again."
-            }, { status: 500 })
-        }
-
-    } catch (err) {
-        console.error("Lantaw News Assist API Error:", err)
-        await logAiError("Lantaw News Assist", `Unexpected error: ${err.message || err}`)
-        return NextResponse.json({ error: "An internal error occurred." }, { status: 500 })
+  try {
+    const { narration, existingFields = {} } = await request.json()
+    if (typeof narration !== 'string' || narration.trim().length < 5) {
+      return NextResponse.json({ error: 'Please provide a more detailed narration.' }, { status: 400 })
     }
+
+    const primaryKey = process.env.GEMINI_LANTAW_AI
+    const backupKey = process.env.GEMINI_LANTAW_BACKUP_AI || primaryKey
+    const thirdKey = process.env.GEMINI_LANTAW_THIRD_AI || backupKey
+    if (!primaryKey && !backupKey && !thirdKey) {
+      await logAiError('Lantaw News Assist', 'Gemini key is not configured')
+      return NextResponse.json({ error: NEWS_ASSIST_ERROR }, { status: 503 })
+    }
+
+    const primaryModel = process.env.GEMINI_LANTAW_MODEL || 'gemini-3.1-flash-lite'
+    const backupModel = process.env.GEMINI_LANTAW_BACKUP_MODEL || 'gemini-3.5-flash-lite'
+    const thirdModel = process.env.GEMINI_LANTAW_THIRD_MODEL
+    const attempts = [
+      { model: primaryModel, key: primaryKey || backupKey },
+      { model: backupModel, key: backupKey || primaryKey },
+      ...(thirdModel ? [{ model: thirdModel, key: thirdKey }] : []),
+    ].filter((attempt, index, all) => attempt.model && attempt.key &&
+      all.findIndex(other => other.model === attempt.model) === index)
+
+    const requested = {
+      headline: !existingFields?.headline?.trim(),
+      tag: !(Array.isArray(existingFields?.tag) ? existingFields.tag.length : existingFields?.tag?.trim()),
+      referenceLink: !existingFields?.referenceLink?.trim(),
+      detailedContent: !existingFields?.detailedContent?.trim(),
+    }
+    if (!requested.headline && !requested.detailedContent && !requested.tag && !requested.referenceLink) {
+      return NextResponse.json({ fields: {} })
+    }
+
+    const prompt = [
+      'You are Lantaw AI drafting a news board report for FloodWatch Cebu.',
+      'Use only facts explicitly stated in the Provincial Admin narration. Do not invent casualties, evacuation counts, damage estimates, official statements, locations, or response actions.',
+      'Write a clear professional headline and an organized report with introduction, incident details, known impacts and response activity, and a concluding statement when those details are available.',
+      'If a detail is unknown, omit it. Do not imply that a report is verified unless the narration says so.',
+      'Return only a valid JSON object. No markdown or commentary. Include only requested fields.',
+      `Requested fields: ${JSON.stringify(requested)}. For tag, use one relevant word. For referenceLink, use an empty string; never invent a URL.`,
+      `Existing fields to preserve: ${JSON.stringify(existingFields)}`,
+      `Provincial Admin narration: ${narration.trim()}`,
+    ].join('\n')
+
+    const startedAt = Date.now()
+    const result = await generateNewsFields({ prompt, existingFields, attempts })
+    await logAiSuccess('Lantaw News Assist', `Drafted news board article with ${result.model} | LATENCY:${Date.now() - startedAt}ms`)
+    return NextResponse.json({ fields: result.fields })
+  } catch (error) {
+    console.error('Lantaw News Assist failed:', error.message)
+    await logAiError('Lantaw News Assist', `Generation failed: ${error.message}`)
+    return NextResponse.json({ error: NEWS_ASSIST_ERROR }, { status: 503 })
+  }
 }

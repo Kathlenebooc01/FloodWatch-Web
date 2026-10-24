@@ -7,7 +7,7 @@ import { supabase } from "@/supabase/util/supabase"
 import { getProvincialPageViewedAt } from "@/lib/notifications/provincialPageSeen.mjs"
 import { fetchProvincialMonitoringUnreadCounts } from "@/lib/notifications/provincialMonitoringUnread.mjs"
 import { getProvincialReportViewedAt } from "@/lib/notifications/provincialReportSeen.mjs"
-import { ensureFreshSession } from "@/lib/auth/ensureFreshSession.mjs"
+import { ensureFreshSession, isAuthSessionMissing } from "@/lib/auth/ensureFreshSession.mjs"
 
 export default function ProvincialNav() {
   const pathname = usePathname()
@@ -46,6 +46,13 @@ export default function ProvincialNav() {
       setMonitoringCount(monitoring.reportCount + monitoring.lguCount)
       setRequestsCount(reqRes.count || 0)
     } catch (err) {
+      if (isAuthSessionMissing(err)) {
+        if (fetchId === latestFetch.current) {
+          setMonitoringCount(0)
+          setRequestsCount(0)
+        }
+        return
+      }
       console.error("Error fetching provincial nav badge counts:", err)
     }
   }, [])

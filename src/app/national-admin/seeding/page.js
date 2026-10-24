@@ -24,6 +24,11 @@ export default async function page(props) {
     console.error("Error fetching seeding rawData:", fetchErr);
   }
 
+  const { data: censusData, error: censusError } = await supabase
+    .from('municipality_census_statistics')
+    .select('municipality_id, total_population, household_population, number_of_households, last_synced_at')
+  const censusByMunicipality = new Map((censusData || []).map(row => [row.municipality_id, row]))
+
   const tableData = [];
   if (rawData) {
     rawData.forEach((prov) => {
@@ -35,6 +40,10 @@ export default async function page(props) {
             province_id: prov.province_id,
             province: prov.name,
             municipality: m.name,
+            total_population: censusByMunicipality.get(m.municipality_id)?.total_population ?? null,
+            household_population: censusByMunicipality.get(m.municipality_id)?.household_population ?? null,
+            number_of_households: censusByMunicipality.get(m.municipality_id)?.number_of_households ?? null,
+            census_last_synced_at: censusByMunicipality.get(m.municipality_id)?.last_synced_at ?? null,
             latitude: m.center_latitude ?? 8.9475,
             longitude: m.center_longitude ?? 125.5406,
             center_point: m.center_point ?? null,
@@ -71,7 +80,7 @@ export default async function page(props) {
         </Suspense>
         <ImportAreas/>
       </div>
-      <SeedTable data={tableData.length > 0 ? tableData : undefined} />
+      <SeedTable data={tableData.length > 0 ? tableData : undefined} censusLoadError={Boolean(censusError)} />
       {showAddArea && (
         <Suspense fallback={null}>
           <AddAreaModal />

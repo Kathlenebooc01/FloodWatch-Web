@@ -12,6 +12,7 @@ import CardSubHeader from '../cards/CardSubHeader';
 import CardBasedText from '../cards/CardBasedText';
 import SearchInput from '@/components/forms/SearchInput';
 import MapFilterDropdown from './MapFilterDropdown';
+import IndicatorLegendPlacement from '@/components/monitoring/IndicatorLegendPlacement';
 import { setCachedMonitoringData } from '@/lib/cache/monitoringCache';
 import { getSelectedAirQuality } from '@/lib/monitoring/latestAirQuality.mjs';
 import { aqiLevel } from '@/lib/monitoring/aqiClassification.mjs';
@@ -207,7 +208,7 @@ const Row = ({ icon, label, value, unit = '' }) => (
   </div>
 );
 
-export default function AirQualityMap({ isFullscreen = false }) {
+export default function AirQualityMap({ isFullscreen = false, legendContainerId }) {
   const [airData, setAirData] = useState([]);
   const [selectedMuni, setSelectedMuni] = useState(null);
   const [airUpdateError, setAirUpdateError] = useState(null);
@@ -516,7 +517,8 @@ export default function AirQualityMap({ isFullscreen = false }) {
       </Map>
 
       {/* ── Floating Legend Card (Bottom-Right: USA AQI Standard) ── */}
-      <div className="absolute bottom-4 right-4 z-10 hidden sm:block">
+      <IndicatorLegendPlacement containerId={legendContainerId}>
+      <div className={legendContainerId ? "w-full" : "absolute bottom-4 right-4 z-10 hidden sm:block"}>
         <div className="bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-lg border border-gray-200 max-w-[320px] transition-all">
           <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-gray-100">
             <span className="text-xs font-extrabold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
@@ -543,6 +545,7 @@ export default function AirQualityMap({ isFullscreen = false }) {
           </div>
         </div>
       </div>
+      </IndicatorLegendPlacement>
 
       {/* ── Floating Detail Panel (Bottom drawer on mobile, left panel on desktop) ── */}
       {selectedMuni && (

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Map, { Source, Layer, NavigationControl } from 'react-map-gl/mapbox';
+import IndicatorLegendPlacement from '@/components/monitoring/IndicatorLegendPlacement';
 import { 
   Waves, 
   Mountain, 
@@ -39,7 +40,7 @@ const SSA_METADATA = {
   4: { range: '> 3.0m', desc: 'Catastrophic Surge / Extreme Coastal Threat', title: 'Advisory 4' },
 };
 
-export default function HazardMap({ isFullscreen = false }) {
+export default function HazardMap({ isFullscreen = false, legendContainerId }) {
   const [activeHazard, setActiveHazard] = useState('flood'); // 'flood' | 'landslide' | 'storm-surge' | 'earthquake'
   const [activeSSA, setActiveSSA] = useState(1); // 1 | 2 | 3 | 4
   const [floodFilter, setFloodFilter] = useState('all'); // 'all' | 1 | 2 | 3
@@ -825,7 +826,8 @@ export default function HazardMap({ isFullscreen = false }) {
       )}
 
       {/* Floating Info Legend Card (Bottom-Right) */}
-      <div className="absolute bottom-4 right-4 z-20 max-w-xs w-full bg-white/95 backdrop-blur-xl border border-gray-200/80 rounded-2xl p-4 shadow-xl grid gap-3">
+      <IndicatorLegendPlacement containerId={legendContainerId}>
+      <div className={legendContainerId ? "w-full bg-white/95 backdrop-blur-xl border border-gray-200/80 rounded-2xl p-4 shadow-xl grid gap-3" : "absolute bottom-4 right-4 z-20 max-w-xs w-full bg-white/95 backdrop-blur-xl border border-gray-200/80 rounded-2xl p-4 shadow-xl grid gap-3"}>
         <div className="flex items-center justify-between border-b border-gray-100 pb-2">
           <div className="flex items-center gap-2">
             {activeHazard === 'flood' ? (
@@ -991,6 +993,7 @@ export default function HazardMap({ isFullscreen = false }) {
           </span>
         </div>
       </div>
+      </IndicatorLegendPlacement>
     </div>
   );
 }

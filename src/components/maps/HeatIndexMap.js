@@ -19,6 +19,7 @@ import CardHeader from '../cards/CardHeader';
 import CardSubHeader from '../cards/CardSubHeader';
 import SearchInput from '@/components/forms/SearchInput';
 import MapFilterDropdown from './MapFilterDropdown';
+import IndicatorLegendPlacement from '@/components/monitoring/IndicatorLegendPlacement';
 import { getCachedMonitoringData, setCachedMonitoringData } from '@/lib/cache/monitoringCache';
 
 // ─── PAGASA Heat Index Categories & Guidelines ──────────────────────────────
@@ -223,7 +224,7 @@ const DetailRow = ({ icon, label, value, unit = '', highlight = false }) => (
   </div>
 );
 
-export default function HeatIndexMap({ isFullscreen = false }) {
+export default function HeatIndexMap({ isFullscreen = false, legendContainerId }) {
   const [heatData, setHeatData] = useState(() => getCachedMonitoringData('heatData') || []);
   const [selectedMuni, setSelectedMuni] = useState(null);
   const [cursor, setCursor] = useState('auto');
@@ -615,22 +616,23 @@ export default function HeatIndexMap({ isFullscreen = false }) {
       )}
 
       {/* ── Bottom-Right Floating PAGASA Legend Card ── */}
-      <div className="absolute bottom-4 right-4 z-20 pointer-events-auto">
+      <IndicatorLegendPlacement containerId={legendContainerId}>
+      <div className={legendContainerId ? "w-full pointer-events-auto" : "absolute bottom-4 right-4 z-20 pointer-events-auto"}>
         <div className="bg-white/95 backdrop-blur-md p-3.5 rounded-2xl shadow-xl border border-gray-200 w-72 transition-all">
           <div className="flex items-center justify-between border-b border-gray-100 pb-2 mb-2">
             <div className="flex items-center gap-1.5 font-extrabold text-xs text-gray-800">
               <Flame className="size-4 text-primary" />
               <span>PAGASA Heat Index Scale</span>
             </div>
-            <button
+            {!legendContainerId && <button
               onClick={() => setIsLegendOpen(!isLegendOpen)}
               className="text-[11px] text-primary font-bold hover:underline cursor-pointer"
             >
               {isLegendOpen ? "Hide" : "Show"}
-            </button>
+            </button>}
           </div>
 
-          {isLegendOpen && (
+          {(legendContainerId || isLegendOpen) && (
             <div className="space-y-1.5">
               {HEAT_INDEX_LEGEND.map((item) => (
                 <div key={item.level} className="flex items-center justify-between text-xs py-1 border-b border-gray-50 last:border-0">
@@ -652,6 +654,7 @@ export default function HeatIndexMap({ isFullscreen = false }) {
           )}
         </div>
       </div>
+      </IndicatorLegendPlacement>
 
     </div>
   );

@@ -289,8 +289,8 @@ function LazyRow({ row, onRowClick, scrollRoot }) {
               {row.municipality}
             </span>
           </TableData>
-          <TableDataMuted>{row.added_on}</TableDataMuted>
-          <TableDataMuted>{row.updated_at}</TableDataMuted>
+          <TableDataMuted>{row.total_population == null ? 'N/A' : Number(row.total_population).toLocaleString('en-PH')}</TableDataMuted>
+          <TableDataMuted>{row.number_of_households == null ? 'N/A' : Number(row.number_of_households).toLocaleString('en-PH')}</TableDataMuted>
           <TableDataAction>
             <button
               className="modal-icon-button hover:bg-gray-200"
@@ -307,7 +307,7 @@ function LazyRow({ row, onRowClick, scrollRoot }) {
   );
 }
 
-export default function SeedTable({ data = [], title = "Area Seeding Table", onRowClick }) {
+export default function SeedTable({ data = [], title = "Area Seeding Table", onRowClick, censusLoadError = false }) {
   const scrollRef = useRef(null);
   const [tableRows, setTableRows] = useState(data);
   const [selectedRow, setSelectedRow] = useState(null);
@@ -315,6 +315,7 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
   const [isEditing, setIsEditing] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const autoSyncStarted = useRef(false);
 
   // Sync internal tableRows when prop data changes
   useEffect(() => {
@@ -340,6 +341,10 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
         .select('province_id, name, municipality_or_city(municipality_id, name, center_latitude, center_longitude, center_point, added_on, updated_at)')
         .order('name', { ascending: true });
 
+      const { data: censusData } = await supabase.from('municipality_census_statistics')
+        .select('municipality_id, total_population, household_population, number_of_households, last_synced_at');
+      const censusByMunicipality = new Map((censusData || []).map(row => [row.municipality_id, row]));
+
       if (rawData) {
         const newRows = [];
         rawData.forEach((prov) => {
@@ -351,6 +356,10 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
                 province_id: prov.province_id,
                 province: prov.name,
                 municipality: m.name,
+                total_population: censusByMunicipality.get(m.municipality_id)?.total_population ?? null,
+                household_population: censusByMunicipality.get(m.municipality_id)?.household_population ?? null,
+                number_of_households: censusByMunicipality.get(m.municipality_id)?.number_of_households ?? null,
+                census_last_synced_at: censusByMunicipality.get(m.municipality_id)?.last_synced_at ?? null,
                 latitude: (m.center_latitude ?? 8.9475) + (Math.random() * 0.0000009 + 0.0000001),
                 longitude: (m.center_longitude ?? 125.5406) + (Math.random() * 0.0000009 + 0.0000001),
                 center_point: m.center_point || `POINT(${((m.center_longitude ?? 125.5406) + (Math.random() * 0.0000009 + 0.0000001)).toFixed(10)} ${((m.center_latitude ?? 8.9475) + (Math.random() * 0.0000009 + 0.0000001)).toFixed(10)})`,
@@ -369,6 +378,27 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
       console.error("Error refreshing seed table data:", err);
     }
   };
+
+  useEffect(() => {
+    if (autoSyncStarted.current) return;
+    autoSyncStarted.current = true;
+    const syncIfNeeded = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+        const response = await fetch('/api/seeding/sync-psa-census', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!response.ok) return;
+        const result = await response.json();
+        if (result.refreshed) await refreshTableData();
+      } catch {
+        // Previously verified values remain available when PSA is unreachable.
+      }
+    };
+    syncIfNeeded();
+  }, []);
 
   // Realtime subscription on municipality_or_city & province tables
   useEffect(() => {
@@ -714,6 +744,7 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
           )}
         </div>
       </TableHeader>
+      {censusLoadError && <div role="status" className="px-4 pb-2 text-xs text-amber-700">Census statistics are temporarily unavailable. Area records are still shown.</div>}
 
       {/* Scrollable Table Body */}
       <TableScrollWrapper ref={scrollRef}>
@@ -721,9 +752,9 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
           <TableHead>
             <tr>
               <Th>Province Name</Th>
-              <Th>Municipality</Th>
-              <Th>Added On</Th>
-              <Th>Last Update</Th>
+              <Th>Municipality / City</Th>
+              <Th>Total Population</Th>
+              <Th>Number of Households</Th>
               <Th className="table-th-right">Action</Th>
             </tr>
           </TableHead>

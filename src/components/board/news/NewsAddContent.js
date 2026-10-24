@@ -285,7 +285,8 @@ export default function NewsAddContent() {
           isOpen={isAssistOpen} 
           onClose={() => { setIsAssistOpen(false); setIsGenerating(false); }} 
           onGenerate={handleAssistGenerate}
-          onGenerateStart={() => { setIsAssistOpen(false); setIsGenerating(true); }}
+          onGenerateStart={() => setIsGenerating(true)}
+          onGenerateEnd={() => setIsGenerating(false)}
           existingFields={{ headline, tag, referenceLink, detailedContent }}
         />
       </section>

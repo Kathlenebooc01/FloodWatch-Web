@@ -66,8 +66,7 @@ export async function POST(request) {
                 Accept Invitation
               </a>
               <p style="color: #9ca3af; font-size: 12px; margin-top: 16px;">
-                Or copy and paste this link into your browser:<br/>
-                <a href="${registrationUrl}" style="color: #0035A9; word-break: break-all;">${registrationUrl}</a>
+                Or <a href="${registrationUrl}" style="color: #0035A9; text-decoration: underline;">click here</a> to accept your invitation.
               </p>
             </div>
           </div>
