@@ -322,6 +322,7 @@ const getReportAttachments = (item) => {
 export default function LGUTable() {
   const searchParams = useSearchParams()
   const requestedDistressId = searchParams.get("distressId")
+  const requestedReportId = searchParams.get("reportId")
   const [activeTab, setActiveTab] = useState("Report Table")
   const [distressViewedAt, setDistressViewedAt] = useState(null)
   const [distressSeenReady, setDistressSeenReady] = useState(false)
@@ -632,6 +633,17 @@ export default function LGUTable() {
     setIsReportModalOpen(false);
     setSelectedReport(null);
   };
+
+  useEffect(() => {
+    if (!requestedReportId) return;
+    const report = reports.find(item => String(item.report_id) === requestedReportId);
+    if (report) {
+      queueMicrotask(() => {
+        setSelectedReport(report);
+        setIsReportModalOpen(true);
+      });
+    }
+  }, [requestedReportId, reports]);
 
   // Open / Close Distress Modal
   const handleOpenDistressModal = (item) => {

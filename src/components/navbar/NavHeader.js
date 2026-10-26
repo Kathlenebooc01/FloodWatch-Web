@@ -32,14 +32,27 @@ export default function NavHeader() {
       .select('*', { count: 'exact', head: true })
       .in('target_role', ['all', role])
     if (role === ROLES.PROVINCIAL_ADMIN) {
+      query = query.is('source_event', null)
       if (lastView) query = query.gt('created_at', lastView)
     } else {
       query = query.eq('is_read', false)
     }
     const { count, error } = await query
+    let submissionCount = 0
+    if (role === ROLES.PROVINCIAL_ADMIN) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const result = await supabase.from('notifications')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .in('source_event', ['citizen_report', 'lgu_report', 'lgu_utility_request'])
+          .eq('is_read', false)
+        if (!result.error) submissionCount = result.count || 0
+      }
+    }
 
     if (!error) {
-      setHasUnreadNotifs((role !== ROLES.PROVINCIAL_ADMIN || !isViewingNotifications) && count > 0)
+      setHasUnreadNotifs((role !== ROLES.PROVINCIAL_ADMIN || !isViewingNotifications) && (count + submissionCount) > 0)
     }
   }, [role, isViewingNotifications])
 

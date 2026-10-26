@@ -1,23 +1,29 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Trash, MoreVertical, CheckCheck } from "lucide-react"
 import CardSubHeader from "@/components/cards/CardSubHeader"
 import CardBasedText from "@/components/cards/CardBasedText"
 import { supabase } from "@/supabase/util/supabase"
 import SingleLineSkeleton from "@/components/skeleton/SingleLineSkeleton"
 import CircleSkeleton from "@/components/skeleton/CircleSkeleton"
+import { useRouter } from "next/navigation"
 
 export default function NotificationBanner({ searchTerm, sortOrder }) {
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
   const [openMenuId, setOpenMenuId] = useState(null)
+  const openingSnapshotMarked = useRef(false)
+  const router = useRouter()
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (markOpeningSnapshot = false) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setLoading(false); return }
     let query = supabase
       .from('notifications')
       .select('*')
       .in('target_role', ['all', 'provincial_admin'])
+      .or(`source_event.is.null,user_id.eq.${user.id}`)
       .order('created_at', { ascending: sortOrder === 'asc' })
 
     if (searchTerm && searchTerm.trim()) {
@@ -30,18 +36,39 @@ export default function NotificationBanner({ searchTerm, sortOrder }) {
       console.error("Error fetching provincial notifications:", error)
     } else {
       setNotifications(data || [])
+      setLoading(false)
+      if (markOpeningSnapshot && !openingSnapshotMarked.current) {
+        openingSnapshotMarked.current = true
+        const ids = (data || []).filter(n => !n.is_read && n.user_id === user.id).map(n => n.id)
+        if (ids.length) {
+          // Let the opening snapshot render before marking only those rows as read.
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+          const { error: readError } = await supabase.from('notifications')
+            .update({ is_read: true })
+            .eq('user_id', user.id)
+            .eq('is_read', false)
+            .in('id', ids)
+          if (readError) {
+            console.error('Error marking displayed notifications as read:', readError)
+          } else {
+            const viewedIds = new Set(ids)
+            setNotifications(prev => prev.map(n => viewedIds.has(n.id) ? { ...n, is_read: true } : n))
+            window.dispatchEvent(new Event('fw_notification_viewed'))
+          }
+        }
+      }
     }
     setLoading(false)
   }
 
   useEffect(() => {
-    fetchNotifications()
+    queueMicrotask(() => fetchNotifications(true))
 
     // Realtime subscription: refresh on incoming notification
     const channel = supabase
       .channel('provincial_notifications_channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
-        fetchNotifications()
+        fetchNotifications(false)
       })
       .subscribe()
 
@@ -90,6 +117,18 @@ export default function NotificationBanner({ searchTerm, sortOrder }) {
       console.error("Error marking notification as unread:", error)
     }
     setOpenMenuId(null)
+  }
+
+  const handleOpen = async (notif) => {
+    const routes = {
+      citizen_report: `/provincial-admin/monitoring/report-map?reportId=${notif.source_id}`,
+      lgu_report: `/provincial-admin/monitoring/lgu-monitoring?reportId=${notif.source_id}`,
+      lgu_utility_request: `/provincial-admin/utilities/request/view-request?id=${notif.source_id}`,
+    }
+    const destination = routes[notif.source_event]
+    if (!destination) return
+    if (!notif.is_read) await handleMarkAsDone(notif.id)
+    router.push(destination)
   }
 
   if (loading) {
@@ -147,7 +186,7 @@ export default function NotificationBanner({ searchTerm, sortOrder }) {
             )}
             
             <div className="flex-1 grid grid-cols-[2fr_1fr_1fr_auto] items-center gap-4 w-full">
-              <div className="min-w-0 pr-4">
+              <div className={`min-w-0 pr-4 ${notif.source_event ? 'cursor-pointer' : ''}`} onClick={() => handleOpen(notif)}>
                 <CardSubHeader className="break-words whitespace-normal">{notif.title}</CardSubHeader>
                 <CardBasedText className='text-gray-500 text-xs break-words whitespace-normal mt-0.5 block'>{notif.message}</CardBasedText>
               </div>
@@ -162,7 +201,7 @@ export default function NotificationBanner({ searchTerm, sortOrder }) {
               
               <div className="text-center min-w-0 whitespace-nowrap">
                 <CardBasedText className='text-gray-500 text-xs'>
-                  {new Date(notif.created_at).toLocaleDateString()}
+                  {new Date(notif.created_at).toLocaleString()}
                 </CardBasedText>
               </div>
               

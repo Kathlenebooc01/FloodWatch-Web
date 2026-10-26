@@ -120,9 +120,16 @@ const Row = ({ icon, label, value }) => (
 );
 
 export default function ReportMapTracker() {
+  const requestedReportId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('reportId') : null;
   const [incidents, setIncidents] = useState(() => getCachedMonitoringData('incidentReports') || []);
   const [selectedReport, setSelectedReport] = useState(null);
   const [cursor, setCursor] = useState('auto');
+
+  useEffect(() => {
+    if (!requestedReportId) return;
+    const report = incidents.find(item => String(item.report_id) === requestedReportId);
+    if (report) queueMicrotask(() => setSelectedReport(report));
+  }, [requestedReportId, incidents]);
 
   useEffect(() => {
     // 1. Fetch incident reports along with municipality and potential specific location tables
