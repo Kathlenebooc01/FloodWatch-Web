@@ -46,9 +46,11 @@ export function sanitizeContext(value) {
   return value;
 }
 
-export async function getMunicipalityWeather(db, query, { weatherKey, fetchImpl = fetch, now = Date.now() } = {}) {
+export async function getMunicipalityWeather(db, query, { weatherKey, fetchImpl = fetch, now = Date.now(), provinceId } = {}) {
   if (!db) throw new Error('Weather data is temporarily unavailable. Please try again.');
-  const municipalities = await db.from('municipality_or_city').select('municipality_id, name, center_latitude, center_longitude').limit(500);
+  let municipalitiesQuery = db.from('municipality_or_city').select('municipality_id, name, center_latitude, center_longitude');
+  if (provinceId) municipalitiesQuery = municipalitiesQuery.eq('province_id', provinceId);
+  const municipalities = await municipalitiesQuery.limit(500);
   if (municipalities.error) throw new Error('Weather data is temporarily unavailable. Please try again.');
   const normalized = normalize(query);
   const matches = (municipalities.data || []).filter(row => {
@@ -105,9 +107,11 @@ export function weatherReply(weather) {
 }
 
 // Uses the same stored tables and latest-per-municipality selection as Monitoring.
-export async function getMonitoringSnapshot(db, query, { now = Date.now(), weatherKey, fetchImpl = fetch } = {}) {
+export async function getMonitoringSnapshot(db, query, { now = Date.now(), weatherKey, fetchImpl = fetch, provinceId } = {}) {
   if (!db) throw new Error('Monitoring data is temporarily unavailable.');
-  const locations = await db.from('municipality_or_city').select('municipality_id, name, center_latitude, center_longitude').limit(500);
+  let locationsQuery = db.from('municipality_or_city').select('municipality_id, name, center_latitude, center_longitude');
+  if (provinceId) locationsQuery = locationsQuery.eq('province_id', provinceId);
+  const locations = await locationsQuery.limit(500);
   if (locations.error) throw new Error('Monitoring locations are temporarily unavailable.');
   const target = normalize(query);
   const location = (locations.data || []).filter(row => {
@@ -200,22 +204,28 @@ export function monitoringReply(snapshot, topic) {
   return `${qualifier} ${label} for ${snapshot.municipality}: ${values.filter(Boolean).join(', ')}. Observed ${date(reading.observed_at)} (Philippine time).${previous}${reading.freshness === 'historical' ? ' No recent reading is available.' : ''}`;
 }
 
-export async function getChatContext(db, topic) {
+export async function getChatContext(db, topic, { provinceId, municipalityIds = [] } = {}) {
   if (Array.isArray(topic)) {
     const categories = await Promise.all([...new Set(topic)].filter(value => value !== 'guidance').map(async value => {
-      try { return { category: value, ...await getChatContext(db, value) }; }
+      try { return { category: value, ...await getChatContext(db, value, { provinceId, municipalityIds }) }; }
       catch { return { category: value, available: false, message: 'This data source could not be read.' }; }
     }));
     return { categories };
   }
   if (topic === 'guidance') return {};
   if (!db) throw new Error('FloodWatch data is temporarily unavailable. Please try again.');
+  if (provinceId && !['air', 'requests', 'reports', 'weather', 'distress', 'alerts'].includes(topic)) {
+    return { available: false, message: 'This data category has no verified province scope.' };
+  }
+  const scopedIds = municipalityIds.length ? municipalityIds : ['00000000-0000-0000-0000-000000000000'];
   if (topic === 'air') {
-    const { data, error, count } = await db.from('air_quality').select('*', { count: 'exact' })
-      .order('recorded_at', { ascending: false }).limit(100);
+    let airQuery = db.from('air_quality').select('*', { count: 'exact' });
+    if (provinceId) airQuery = airQuery.in('municipality_id', scopedIds);
+    const { data, error, count } = await airQuery.order('recorded_at', { ascending: false }).limit(100);
     if (error) throw new Error('Air quality data is temporarily unavailable. Please try again.');
-    const { data: municipalities, error: municipalityError } = await db.from('municipality_or_city')
-      .select('municipality_id, name').limit(500);
+    let municipalitiesQuery = db.from('municipality_or_city').select('municipality_id, name');
+    if (provinceId) municipalitiesQuery = municipalitiesQuery.eq('province_id', provinceId);
+    const { data: municipalities, error: municipalityError } = await municipalitiesQuery.limit(500);
     const names = new Map((municipalityError ? [] : municipalities || []).map(row => [row.municipality_id, row.name]));
     return { source: 'air_quality', sample_limit: 100, total_records: count ?? null,
       truncated: count != null ? count > (data || []).length : null,
@@ -242,6 +252,7 @@ export async function getChatContext(db, topic) {
   if (!sources[topic]) throw new Error('Unsupported FloodWatch data category.');
   const [table, columns, order = 'created_at'] = sources[topic];
   let query = db.from(table).select(columns, { count: 'exact' });
+  if (provinceId) query = query.in('municipality_id', scopedIds);
   if (order) query = query.order(order, { ascending: false });
   const { data, error, count } = await query.limit(100);
   if (error) throw new Error('FloodWatch data is temporarily unavailable. Please try again.');

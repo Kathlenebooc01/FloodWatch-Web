@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { authorizeApiRequest } from '@/lib/auth/authorizeApiRequest.mjs'
 
 export async function POST(req) {
+  const auth = await authorizeApiRequest(req, ['national_admin'])
+  if (auth.response) return auth.response
   try {
     const body = await req.json()
     const { userId } = body

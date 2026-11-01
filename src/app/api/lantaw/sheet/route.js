@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import ExcelJS from 'exceljs'
+import { authorizeApiRequest } from '@/lib/auth/authorizeApiRequest.mjs'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.NEXT_SERVICE_ROLE_KEY
@@ -25,6 +26,9 @@ function prettifyHeader(key) {
 }
 
 export async function POST(request) {
+    const auth = await authorizeApiRequest(request, ['provincial_admin'])
+    if (auth.response) return auth.response
+    if (!auth.profile.province_id) return NextResponse.json({ error: 'Province assignment required' }, { status: 403 })
     try {
         const { source, title } = await request.json()
 
@@ -39,6 +43,13 @@ export async function POST(request) {
 
         // Fetch real data directly from Supabase (LantawSources)
         let query = supabaseAdmin.from(config.table).select('*')
+        if (!['pdrrmo_inventory', 'utilities'].includes(source)) {
+            const { data: municipalities, error: municipalityError } = await auth.db.from('municipality_or_city')
+                .select('municipality_id').eq('province_id', auth.profile.province_id)
+            if (municipalityError) throw municipalityError
+            const ids = (municipalities || []).map(row => row.municipality_id)
+            query = query.in('municipality_id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])
+        }
         if (config.order) {
             query = query.order(config.order.col, { ascending: config.order.ascending })
         }

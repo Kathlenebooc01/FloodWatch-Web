@@ -9,6 +9,7 @@ import BodyChat from "./BodyChat"
 import HistoryModal from "./HistoryModal"
 import InputPrompt from "./InputPrompt"
 import { supabase } from "@/supabase/util/supabase"
+import { clientApiAuthorization } from '@/lib/auth/clientApiAuthorization'
 
 export default function MainChat() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
@@ -51,7 +52,7 @@ export default function MainChat() {
     try {
       const res = await fetch('/api/lantaw', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson', ...await clientApiAuthorization() },
         body: JSON.stringify({
           prompt: userPrompt.trim(),
           conversationId: currentConvoId,

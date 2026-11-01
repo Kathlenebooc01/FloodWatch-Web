@@ -2,6 +2,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/supabase/util/supabase"
+import { clientApiAuthorization } from '@/lib/auth/clientApiAuthorization'
 import CardHeader from "@/components/cards/CardHeader"
 import CardBasedText from "@/components/cards/CardBasedText"
 import PrimaryButton from "@/components/button/PrimaryButton"
@@ -36,6 +37,7 @@ export default function Page() {
 
       const response = await fetch('/api/lantaw/extract', {
         method: 'POST',
+        headers: await clientApiAuthorization(),
         body: formData,
       })
 

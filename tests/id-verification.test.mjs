@@ -33,7 +33,8 @@ test('provider HTTP failures reach a third model and use a sufficient response b
   const calls = [];
   const result = await assessVerification([{ text: 'Review' }], {
     primaryKey: 'primary', primaryModel: 'gemini-3.1-flash-lite',
-    backupKey: 'backup',
+    backupKey: 'backup', backupModel: 'gemini-3.5-flash-lite',
+    thirdKey: 'third', thirdModel: 'gemini-3.1-flash-lite-preview',
   }, async (_url, options) => {
     const request = JSON.parse(options.body);
     calls.push({ key: options.headers['x-goog-api-key'], config: request.generationConfig, url: String(_url) });
@@ -42,8 +43,10 @@ test('provider HTTP failures reach a third model and use a sufficient response b
       '{"ai_is_valid":false,"ai_confidence_score":20,"ai_insight":"Image is unclear."}' }] } }] });
   });
   assert.equal(result.ai_is_valid, false);
-  assert.deepEqual(calls.map(call => call.key), ['primary', 'primary', 'backup']);
-  assert.match(calls[2].url, /gemini-3\.5-flash-lite/);
+  assert.deepEqual(calls.map(call => call.key), ['primary', 'backup', 'third']);
+  assert.match(calls[0].url, /gemini-3\.1-flash-lite/);
+  assert.match(calls[1].url, /gemini-3\.5-flash-lite/);
+  assert.match(calls[2].url, /gemini-3\.1-flash-lite-preview/);
   assert.equal(calls[0].config.thinkingConfig.thinkingLevel, 'minimal');
   assert.equal(calls[0].config.maxOutputTokens, 2048);
 });

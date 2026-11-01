@@ -1,0 +1,17 @@
+html, body { margin: 0; min-height: 100%; font-family: Arial, Helvetica, sans-serif; }
+.floodwatch-docs { min-height: 100vh; background: #f8fafc; color: #0f172a; }
+.floodwatch-docs__header { background: #092654; color: white; padding: 48px 24px; }
+.floodwatch-docs__header-inner, .floodwatch-docs__content { max-width: 1200px; margin: 0 auto; }
+.floodwatch-docs__eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #93c5fd; }
+.floodwatch-docs__header h1 { margin: 8px 0; font-size: clamp(30px, 5vw, 48px); line-height: 1.1; }
+.floodwatch-docs__header p:last-child { margin: 12px 0 0; color: #cbd5e1; }
+.floodwatch-docs__content { padding: 24px; }
+.floodwatch-docs__tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.floodwatch-docs__tabs button { border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #1e293b; padding: 10px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+.floodwatch-docs__tabs button[aria-pressed='true'] { background: #1d4ed8; border-color: #1d4ed8; color: white; }
+.floodwatch-docs__tabs button:focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
+.floodwatch-docs__notice { border-left: 4px solid #2563eb; background: #eff6ff; padding: 12px 16px; margin: 0 0 20px; line-height: 1.5; }
+.floodwatch-docs__notice[hidden] { display: none; }
+#swagger-ui { background: white; border: 1px solid #e2e8f0; border-radius: 12px; min-height: 75vh; padding: 16px; }
+.swagger-ui .topbar { display: none; }
+.swagger-ui .scheme-container { background: transparent; box-shadow: none; }

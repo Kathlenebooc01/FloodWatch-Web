@@ -21,6 +21,7 @@ import {
   ShieldAlert
 } from "lucide-react"
 import { supabase } from '@/supabase/util/supabase'
+import { clientApiAuthorization } from '@/lib/auth/clientApiAuthorization'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -208,7 +209,7 @@ export default function AddAreaModal() {
     try {
       const res = await fetch('/api/seeding/add-area', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...await clientApiAuthorization() },
         body: JSON.stringify({
           province_id: selectedProvinceId,
           new_province_name: newProvinceName,

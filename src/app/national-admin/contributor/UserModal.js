@@ -8,6 +8,7 @@ import CardSubHeader from "@/components/cards/CardSubHeader"
 import { Shield, X, UserRoundPlus, User, MapPin, MapPinHouse, UserRoundCog, Building, Phone } from "lucide-react"
 import PrimaryButton from "@/components/button/PrimaryButton"
 import { supabase } from "@/supabase/util/supabase"
+import { clientApiAuthorization } from '@/lib/auth/clientApiAuthorization'
 
 export default function UserModal({ invitationId, onClose }) {
   const [loading, setLoading] = useState(true)
@@ -144,7 +145,7 @@ export default function UserModal({ invitationId, onClose }) {
 
       const emailResponse = await fetch("/api/send-invite-email", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...await clientApiAuthorization() },
         body: JSON.stringify({
           email: invitation.official_email,
           lguName: invitation.lgu_name,

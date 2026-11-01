@@ -40,6 +40,7 @@ import {
   Trash2
 } from "lucide-react"
 import { supabase } from "@/supabase/util/supabase"
+import { clientApiAuthorization } from '@/lib/auth/clientApiAuthorization'
 
 const ROLE_TABS = [
   { label: "All Users", key: "all" },
@@ -318,7 +319,7 @@ export default function ListofUsersTable() {
     try {
       const res = await fetch('/api/users/update-status', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...await clientApiAuthorization() },
         body: JSON.stringify({
           userId: selectedUser.id,
           status: newStatus
@@ -360,7 +361,7 @@ export default function ListofUsersTable() {
     try {
       const res = await fetch('/api/users/delete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...await clientApiAuthorization() },
         body: JSON.stringify({ userId: selectedUser.id })
       });
 

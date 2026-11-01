@@ -1,6 +1,7 @@
 "use client"
 import { useState } from "react"
 import { Sheet, Download, Loader2 } from "lucide-react"
+import { clientApiAuthorization } from '@/lib/auth/clientApiAuthorization'
 
 export default function LantawSheetCard({ data }) {
   const { title, source } = data
@@ -11,7 +12,7 @@ export default function LantawSheetCard({ data }) {
     try {
       const res = await fetch('/api/lantaw/sheet', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...await clientApiAuthorization() },
         body: JSON.stringify({ source, title }),
       })
 

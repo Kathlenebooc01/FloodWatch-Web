@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { authorizeApiRequest } from '@/lib/auth/authorizeApiRequest.mjs';
 
 // Helper: Generate a bounding box polygon (WKT) around a center point
 function generateDefaultGeofenceWkt(lng, lat, delta = 0.04) {
@@ -11,6 +12,8 @@ function generateDefaultGeofenceWkt(lng, lat, delta = 0.04) {
 }
 
 export async function POST(req) {
+  const auth = await authorizeApiRequest(req, ['national_admin']);
+  if (auth.response) return auth.response;
   try {
     const body = await req.json();
     const { 

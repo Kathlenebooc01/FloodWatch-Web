@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
+import FloodWatchLogo from "@/assets/images/logofloodwatch.png";
 
 export default function HNavBar() {
     const [isScrolled, setIsScrolled] = useState(false);
@@ -21,8 +23,15 @@ export default function HNavBar() {
     }, []);
 
     return (
-        <nav className={`horizontal-layout-navbar ${isScrolled ? 'navbar-stuck' : 'bg-transparent'}`}> 
-            <label className="font-bold text-lg text-primary"><Link href="/">Floodwatch</Link></label>
+        <nav className={`horizontal-layout-navbar border-b border-slate-200/70 px-5 py-2.5 sm:px-8 ${isScrolled ? 'bg-white/95 shadow-sm backdrop-blur-md' : 'bg-white'}`}>
+            <Link href="/" className="group flex items-center gap-3" aria-label="FloodWatch Cebu home">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-50 to-blue-100 ring-1 ring-blue-100 transition-transform group-hover:scale-105">
+                    <Image src={FloodWatchLogo} alt="" width={39} height={39} className="h-10 w-10 object-contain" priority />
+                </span>
+                <span className="flex items-baseline gap-1 text-[17px] font-extrabold tracking-tight sm:text-xl">
+                    <span className="text-[#063e91]">FloodWatch</span><span className="text-[#1685d7]">Cebu</span>
+                </span>
+            </Link>
             
             {/* Desktop Links */}
             <ul className="hidden md:flex gap-10">

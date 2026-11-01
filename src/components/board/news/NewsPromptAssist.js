@@ -4,6 +4,7 @@ import { Sparkles, Loader2 } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import TextArea from "@/components/forms/TextArea"
 import PrimaryButton from "@/components/button/PrimaryButton"
+import { clientApiAuthorization } from '@/lib/auth/clientApiAuthorization'
 
 export default function NewsPromptAssist({ isOpen, onClose, onGenerate, onGenerateStart, onGenerateEnd, existingFields }) {
   const pendingRef = useRef(false)
@@ -28,7 +29,7 @@ export default function NewsPromptAssist({ isOpen, onClose, onGenerate, onGenera
     try {
       const res = await fetch("/api/lantaw/news-assist", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...await clientApiAuthorization() },
         body: JSON.stringify({
           narration: narration.trim(),
           existingFields: existingFields || {},

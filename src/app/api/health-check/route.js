@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { logAiError, logAiSuccess } from '@/lib/logs/apiLogger';
+import { authorizeApiRequest } from '@/lib/auth/authorizeApiRequest.mjs';
 
-export async function GET() {
+export async function GET(request) {
+    const auth = await authorizeApiRequest(request, ['national_admin']);
+    if (auth.response) return auth.response;
     try {
         const model = process.env.GEMINI_LANTAW_MODEL || 'gemini-flash-latest';
         const primaryKey = process.env.GEMINI_LANTAW_AI;

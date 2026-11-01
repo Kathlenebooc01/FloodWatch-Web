@@ -1,6 +1,7 @@
 "use client"
 import { useState } from "react"
 import { FileText, Download, Loader2, FileDown } from "lucide-react"
+import { clientApiAuthorization } from '@/lib/auth/clientApiAuthorization'
 
 export default function LantawDocumentCard({ data }) {
   const { title, content, format } = data
@@ -12,7 +13,7 @@ export default function LantawDocumentCard({ data }) {
     try {
       const res = await fetch('/api/lantaw/document', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...await clientApiAuthorization() },
         body: JSON.stringify({
           title,
           content,

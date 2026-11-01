@@ -9,6 +9,7 @@ import GeneralInput from "../forms/GeneralInput"
 import PrimaryButton from "../button/PrimaryButton"
 import { X, Mail, MapPin, ShieldCheck, Send, Landmark, Check, Loader2, ChevronDown, Building2, Shield } from "lucide-react"
 import { supabase } from "@/supabase/util/supabase"
+import { clientApiAuthorization } from '@/lib/auth/clientApiAuthorization'
 
 const ROLES = [  
   {
@@ -244,7 +245,7 @@ export default function InviteUserModal({ onClose }) {
 
       const emailResponse = await fetch('/api/send-invite-email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...await clientApiAuthorization() },
         body: JSON.stringify({
           email,
           lguName: resolvedLguName || lguName || "National",

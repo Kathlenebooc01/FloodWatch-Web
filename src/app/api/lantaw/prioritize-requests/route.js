@@ -43,10 +43,19 @@ async function fetchCurrentWeather() {
   }));
 }
 
-async function analyzeRequests() {
-  const { data: rows, error, count } = await supabase.from('resource_requests')
+async function analyzeRequests(provinceId = null) {
+  let municipalityIds = null;
+  if (provinceId) {
+    const { data: municipalities, error: municipalityError } = await supabase.from('municipality_or_city')
+      .select('municipality_id').eq('province_id', provinceId);
+    if (municipalityError) throw new AnalysisError('Unable to scope resource requests to your province.', 503);
+    municipalityIds = (municipalities || []).map(row => row.municipality_id);
+  }
+  let requestQuery = supabase.from('resource_requests')
     .select('*, municipality_or_city:municipality_id(name), resource_request_items(*, utilities:utilities_id(name, type))', { count: 'exact' })
-    .in('status', statusVariants(ACTIVE_REQUEST_STATUSES))
+    .in('status', statusVariants(ACTIVE_REQUEST_STATUSES));
+  if (municipalityIds) requestQuery = requestQuery.in('municipality_id', municipalityIds.length ? municipalityIds : ['00000000-0000-0000-0000-000000000000']);
+  const { data: rows, error, count } = await requestQuery
     .order('created_at', { ascending: false }).order('request_id', { ascending: false }).limit(REQUEST_LIMIT);
   if (error) throw new AnalysisError('Unable to load resource requests. Please try again.', 503);
   const requestsToAnalyze = (rows || []).map(row => ({
@@ -155,15 +164,19 @@ export async function POST(request) {
     });
     const { data: { user }, error } = await sessionDb.auth.getUser(token);
     if (error || !user) return NextResponse.json({ success: false, error: 'Your session expired. Please sign in again.' }, { status: 401 });
-    const { data: profile, error: profileError } = await sessionDb.from('profiles').select('role').eq('id', user.id).single();
+    const { data: profile, error: profileError } = await sessionDb.from('profiles').select('role, province_id, account_status').eq('id', user.id).single();
     if (profileError) throw new AnalysisError('Unable to verify your admin account right now. Please try Analyze again.', 503);
-    if (![ROLES.NATIONAL_ADMIN, ROLES.PROVINCIAL_ADMIN].includes(normalizeRole(profile?.role))) {
+    if (![ROLES.NATIONAL_ADMIN, ROLES.PROVINCIAL_ADMIN].includes(normalizeRole(profile?.role)) ||
+        profile.account_status?.toLowerCase().includes('deact')) {
       return NextResponse.json({ success: false, error: 'An admin account is required to analyze requests.' }, { status: 403 });
+    }
+    if (normalizeRole(profile.role) === ROLES.PROVINCIAL_ADMIN && !profile.province_id) {
+      return NextResponse.json({ success: false, error: 'A province assignment is required to analyze requests.' }, { status: 403 });
     }
     // Concurrent clicks share one analysis; completed results are never auto-reused.
     let analysis = inFlight.get(user.id);
     if (!analysis) {
-      analysis = analyzeRequests();
+      analysis = analyzeRequests(normalizeRole(profile.role) === ROLES.PROVINCIAL_ADMIN ? profile.province_id : null);
       inFlight.set(user.id, analysis);
     }
     let data;

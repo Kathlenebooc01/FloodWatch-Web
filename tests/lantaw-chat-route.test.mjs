@@ -9,29 +9,59 @@ await loadBindings();
 const { code } = await transform(fs.readFileSync(new URL('../src/app/api/lantaw/route.js', import.meta.url), 'utf8'), {
   jsc: { parser: { syntax: 'ecmascript' }, target: 'es2022' }, module: { type: 'commonjs' },
 });
-function setup({ weather, toolError } = {}) {
+function setup({ weather, toolError, role = 'provincial_admin' } = {}) {
   const calls = [], generated = [], background = [];
+  const db = { from(table) {
+    assert.equal(table, 'municipality_or_city');
+    return { select() { return this; }, eq(column, value) {
+      assert.equal(column, 'province_id');
+      assert.equal(value, 'province-1');
+      return Promise.resolve({ data: [{ municipality_id: 'municipality-1' }], error: null });
+    } };
+  } };
+  const scopedTools = { ...tools,
+    async getMunicipalityWeather(readDb, query, options) {
+      assert.equal(readDb, db);
+      assert.equal(options.provinceId, 'province-1');
+      calls.push({ tool: 'get_municipality_weather', args: { municipality_name: query } });
+      if (toolError) throw new Error(toolError);
+      return weather;
+    },
+    async getMonitoringSnapshot(readDb, query, options) {
+      assert.equal(readDb, db);
+      assert.equal(options.provinceId, 'province-1');
+      calls.push({ tool: 'get_monitoring_snapshot', args: { municipality_name: query } });
+      if (toolError) throw new Error(toolError);
+      return { municipality: 'Cebu City', air: { aqi: 72, status: 'Moderate', observed_at: '2026-09-21T07:41:40Z', freshness: 'historical' },
+        weather: { temperature_c: 32, observed_at: '2026-10-09T03:00:00Z', freshness: 'recent' },
+        heat: { heat_index_c: 39, observed_at: '2026-10-09T03:00:00Z', freshness: 'recent' }, hazards: { alerts: [] } };
+    },
+    async getChatContext(readDb, topic, options) {
+      assert.equal(readDb, db);
+      assert.deepEqual(options, { provinceId: 'province-1', municipalityIds: ['municipality-1'] });
+      calls.push({ tool: 'get_floodwatch_chat_context', args: Array.isArray(topic) ? { topics: topic } : { topic } });
+      if (toolError) throw new Error(toolError);
+      return { source: 'incident_report', sample_limit: 20, records: [] };
+    },
+  };
   const compiledModule = { exports: {} };
   new Function('require', 'module', 'exports', 'process', code)(name => {
     if (name === 'next/server') return { NextResponse: { json(body, options = {}) { return { body, status: options.status || 200, async json() { return body; } }; } }, after: fn => background.push(fn) };
-    if (name === '@supabase/supabase-js') return { createClient: () => { throw new Error('Unexpected direct database query'); } };
+    if (name === '@supabase/supabase-js') return { createClient: () => ({}) };
     if (name.includes('apiLogger')) return { logAiSuccess() {}, logAiError() {} };
-    if (name.includes('chat-tools')) return tools;
+    if (name.includes('chat-tools')) return scopedTools;
     if (name.includes('chat-provider')) return { async generateChatAnswer(prompt, options) { options.onChunk?.('Grounded'); generated.push(prompt); return 'Grounded concise answer'; } };
-    if (name.includes('mcp-client')) return { async callLantawTool(tool, args) {
-      calls.push({ tool, args });
-      if (toolError) throw new Error(toolError);
-      return tool === 'get_municipality_weather' ? weather : tool === 'get_monitoring_snapshot'
-        ? { municipality: 'Cebu City', air: { aqi: 72, status: 'Moderate', observed_at: '2026-09-21T07:41:40Z', freshness: 'historical' },
-          weather: { temperature_c: 32, observed_at: '2026-10-09T03:00:00Z', freshness: 'recent' },
-          heat: { heat_index_c: 39, observed_at: '2026-10-09T03:00:00Z', freshness: 'recent' }, hazards: { alerts: [] } }
-        : { source: 'incident_report', sample_limit: 20, records: [] };
+    if (name.includes('authorizeApiRequest')) return { async authorizeApiRequest(req, allowedRoles) {
+      assert.deepEqual(allowedRoles, ['provincial_admin']);
+      if (req.headers.get('authorization') !== 'Bearer provincial-test') return { response: { status: 401 } };
+      if (role !== 'provincial_admin') return { response: { status: 403 } };
+      return { db, user: { id: 'verified-user' }, profile: { role, province_id: 'province-1' } };
     } };
     throw new Error('Unexpected import ' + name);
   }, compiledModule, compiledModule.exports, { env: {} });
   return { POST: compiledModule.exports.POST, calls, generated, background };
 }
-const request = (prompt, extra = {}) => ({ async json() { return { prompt, ...extra }; } });
+const request = (prompt, extra = {}) => ({ headers: new Headers({ Authorization: 'Bearer provincial-test' }), async json() { return { prompt, ...extra }; } });
 test('greetings and unrelated arithmetic use the scoped AI rather than canned local answers', async () => {
  const route = setup();
  await route.POST(request('1+1'));
@@ -84,7 +114,7 @@ test('unavailable weather and MCP failure never turn into fabricated factual res
 test('streaming endpoint sends real partial output and a final answer while preserving scope', async () => {
   const route = setup();
   const req = request('flood safety');
-  req.headers = new Headers({ Accept: 'application/x-ndjson' });
+  req.headers.set('Accept', 'application/x-ndjson');
   const response = await route.POST(req);
   assert.match(response.headers.get('content-type'), /application\/x-ndjson/);
   const events = (await response.text()).trim().split('\n').map(JSON.parse);
@@ -101,4 +131,14 @@ test('mixed weather and report questions retain both backend contexts', async ()
   assert.deepEqual(route.calls[1].args.topics, ['reports']);
   assert.match(route.generated[0], /municipality_weather/);
   assert.match(route.generated[0], /incident_report/);
+});
+test('chat requires a Provincial Admin session before querying province data', async () => {
+  const anonymous = request('flood safety');
+  anonymous.headers.delete('Authorization');
+  const route = setup();
+  assert.equal((await route.POST(anonymous)).status, 401);
+  assert.equal(route.calls.length, 0);
+  const national = setup({ role: 'national_admin' });
+  assert.equal((await national.POST(request('flood safety'))).status, 403);
+  assert.equal(national.calls.length, 0);
 });

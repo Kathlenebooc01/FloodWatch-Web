@@ -12,15 +12,22 @@ const { code } = await transform(fs.readFileSync(new URL('../src/app/api/lantaw/
   jsc: { parser: { syntax: 'ecmascript' }, target: 'es2020' }, module: { type: 'commonjs' },
 });
 
-function setup({ role = 'national_admin', rows = [], queryError = null, profileError = null, generator } = {}) {
-  const calls = [], prompts = [];
+function setup({ role = 'national_admin', provinceId = null, municipalityIds = ['own-municipality'], rows = [], queryError = null, profileError = null, generator } = {}) {
+  const calls = [], prompts = [], filters = [];
   const db = {
     auth: { async getUser() { return { data: { user: { id: 'admin' } } }; } },
     from(table) {
       calls.push(table);
+      if (table === 'municipality_or_city') return {
+        select() { return this; },
+        async eq(column, value) {
+          filters.push({ table, column, value });
+          return { data: municipalityIds.map(municipality_id => ({ municipality_id })), error: null };
+        },
+      };
       return {
-        select() { return this; }, eq() { return this; }, in() { return this; }, order() { return this; },
-        async single() { return { data: { role }, error: profileError }; },
+        select() { return this; }, eq() { return this; }, in(column, values) { filters.push({ table, column, values }); return this; }, order() { return this; },
+        async single() { return { data: { role, province_id: provinceId }, error: profileError }; },
         async limit() { return { data: rows, error: queryError, count: rows.length }; },
       };
     },
@@ -39,7 +46,7 @@ function setup({ role = 'national_admin', rows = [], queryError = null, profileE
     return name.includes('domain-values') ? domain : helpers;
   }, compiledModule, compiledModule.exports, () => { throw new Error('Unexpected weather network request'); },
   { env: { NEXT_PUBLIC_SUPABASE_URL: 'https://test.invalid', NEXT_SERVICE_ROLE_KEY: 'test', GEMINI_LANTAW_AI: 'test' } });
-  return { POST: compiledModule.exports.POST, calls, prompts };
+  return { POST: compiledModule.exports.POST, calls, prompts, filters };
 }
 const request = (token = 'Bearer test') => ({ headers: { get() { return token; } } });
 test('analysis API accepts signed-in admins and rejects non-admin accounts', async () => {
@@ -49,7 +56,16 @@ test('analysis API accepts signed-in admins and rejects non-admin accounts', asy
     assert.equal((await route.POST(request())).status, 403);
     assert.equal(route.prompts.length, 0);
   }
-  assert.equal((await setup({ role: 'provincial_admin' }).POST(request())).status, 200);
+  assert.equal((await setup({ role: 'national_admin' }).POST(request())).status, 200);
+  const withoutProvince = setup({ role: 'provincial_admin' });
+  assert.equal((await withoutProvince.POST(request())).status, 403);
+  assert.ok(!withoutProvince.calls.includes('resource_requests'));
+  const provincial = setup({ role: 'provincial_admin', provinceId: 'own-province' });
+  assert.equal((await provincial.POST(request())).status, 200);
+  assert.deepEqual(provincial.filters.find(filter => filter.table === 'municipality_or_city'),
+    { table: 'municipality_or_city', column: 'province_id', value: 'own-province' });
+  assert.deepEqual(provincial.filters.find(filter => filter.table === 'resource_requests' && filter.column === 'municipality_id')?.values,
+    ['own-municipality']);
 });
 test('a failed profile lookup is a temporary verification failure, not an access denial', async () => {
   const route = setup({ profileError: { message: 'Network failure' } });

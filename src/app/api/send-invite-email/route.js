@@ -1,26 +1,39 @@
 import { Resend } from 'resend'
 import { NextResponse } from 'next/server'
+import { authorizeApiRequest } from '@/lib/auth/authorizeApiRequest.mjs'
 
 export async function POST(request) {
+  const auth = await authorizeApiRequest(request, ['national_admin'])
+  if (auth.response) return auth.response
   try {
     if (!process.env.RESEND_API_KEY) {
       return NextResponse.json({ error: 'RESEND_API_KEY is not configured.' }, { status: 500 })
     }
     const resend = new Resend(process.env.RESEND_API_KEY)
-    const { email, lguName, role, inviteCode } = await request.json()
+    const { inviteCode } = await request.json()
+    if (typeof inviteCode !== 'string' || !/^[0-9a-f-]{36}$/i.test(inviteCode)) {
+      return NextResponse.json({ error: 'Invalid invitation code.' }, { status: 400 })
+    }
+    const { data: invitation, error: invitationError } = await auth.db.from('invitations')
+      .select('official_email, lgu_name, account_role, status, expires_at')
+      .eq('invite_code', inviteCode).maybeSingle()
+    if (invitationError || !invitation || invitation.status !== 'pending' ||
+        !invitation.expires_at || Date.parse(invitation.expires_at) <= Date.now()) {
+      return NextResponse.json({ error: 'Invitation is unavailable.' }, { status: 400 })
+    }
+    const email = invitation.official_email
+    const lguName = invitation.lgu_name
+    const role = invitation.account_role
+    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char])
 
     // Build the registration URL with the invite code
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
     const registrationUrl = `${baseUrl}/register/provincial/${inviteCode}`
 
-    // For testing phase: Log the invite link so it can be copied directly from the terminal
-    console.log('\\n=========================================================')
-    console.log(`📨 INVITE LINK FOR ${email}:`)
-    console.log(registrationUrl)
-    console.log('=========================================================\\n')
-
     const roleMap = { national_admin: 'National Admin', provincial_admin: 'Provincial Admin', lgu_headmaster: 'LGU Headmaster', lgu_frontliner: 'LGU Frontliner', citizen: 'Citizen' };
-    const roleName = roleMap[role] || role;
+    const roleName = escapeHtml(roleMap[role] || role);
+    const safeLguName = escapeHtml(lguName)
 
     const { data, error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || 'FloodWatch <onboarding@floodwatch.site>',
@@ -50,7 +63,7 @@ export async function POST(request) {
                 </tr>
                 <tr>
                   <td style="padding: 8px 0; border-top: 1px solid #f3f4f6; color: #9ca3af; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Province / LGU</td>
-                  <td style="padding: 8px 0; border-top: 1px solid #f3f4f6; color: #1a1a2e; font-size: 15px; font-weight: 600; text-align: right;">${lguName}</td>
+                  <td style="padding: 8px 0; border-top: 1px solid #f3f4f6; color: #1a1a2e; font-size: 15px; font-weight: 600; text-align: right;">${safeLguName}</td>
                 </tr>
                 <tr>
                   <td style="padding: 8px 0; border-top: 1px solid #f3f4f6; color: #9ca3af; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Expires</td>

@@ -4,6 +4,7 @@ import GeneralCard from "@/components/cards/GeneralCard";
 import CardSubHeader from "@/components/cards/CardSubHeader";
 import CardBasedText from "@/components/cards/CardBasedText";
 import { supabase } from "@/supabase/util/supabase";
+import { clientApiAuthorization } from '@/lib/auth/clientApiAuthorization';
 
 export default function SystemStatus() {
   const [apis, setApis] = useState([]);
@@ -93,7 +94,7 @@ export default function SystemStatus() {
             onClick={async () => {
               setIsRefreshing(true);
               try {
-                await fetch('/api/health-check');
+                await fetch('/api/health-check', { headers: await clientApiAuthorization() });
               } catch (e) {
                 console.log('Manual health check failed');
               }

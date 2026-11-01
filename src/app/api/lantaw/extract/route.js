@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { extractSpreadsheet, extractPlainText, extractMultimodal } from '@/lib/lantaw/extractors';
 import { cleanseAndFilterItems } from '@/lib/lantaw/cleanser';
 import { logAiError, logAiSuccess } from '@/lib/logs/apiLogger';
+import { authorizeApiRequest } from '@/lib/auth/authorizeApiRequest.mjs';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.NEXT_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -25,6 +26,8 @@ function formatBytes(bytes) {
 }
 
 export async function POST(request) {
+  const auth = await authorizeApiRequest(request, ['provincial_admin']);
+  if (auth.response) return auth.response;
   try {
     const formData = await request.formData();
     const file = formData.get('file');

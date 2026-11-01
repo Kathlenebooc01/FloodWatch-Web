@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx'
 import PDFDocument from 'pdfkit'
+import { authorizeApiRequest } from '@/lib/auth/authorizeApiRequest.mjs'
 
 // Simple markdown-to-structured-content parser
 function parseMarkdownContent(markdown) {
@@ -228,6 +229,8 @@ async function generatePdf(title, markdownContent) {
 
 // --- Main API Route Handler ---
 export async function POST(request) {
+    const auth = await authorizeApiRequest(request, ['provincial_admin'])
+    if (auth.response) return auth.response
     try {
         const { title, content, format } = await request.json()
 

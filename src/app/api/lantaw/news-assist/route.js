@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server'
 import { logAiError, logAiSuccess } from '@/lib/logs/apiLogger'
+import { authorizeApiRequest } from '@/lib/auth/authorizeApiRequest.mjs'
 import { generateNewsFields, NEWS_ASSIST_ERROR } from '@/lib/lantaw/news-assist.mjs'
 
 export const maxDuration = 60
 
 export async function POST(request) {
+  const auth = await authorizeApiRequest(request, ['provincial_admin'])
+  if (auth.response) return auth.response
   try {
     const { narration, existingFields = {} } = await request.json()
     if (typeof narration !== 'string' || narration.trim().length < 5) {

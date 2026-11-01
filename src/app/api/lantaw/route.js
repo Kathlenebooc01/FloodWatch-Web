@@ -1,9 +1,9 @@
 import { NextResponse, after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { logAiError, logAiSuccess } from '@/lib/logs/apiLogger'
-import { chatTopic, chatTopics, sanitizeContext, weatherReply, monitoringReply } from '@/lib/lantaw/chat-tools.mjs'
+import { chatTopic, chatTopics, sanitizeContext, weatherReply, monitoringReply, getChatContext, getMunicipalityWeather, getMonitoringSnapshot } from '@/lib/lantaw/chat-tools.mjs'
 import { generateChatAnswer } from '@/lib/lantaw/chat-provider.mjs'
-import { callLantawTool } from '@/lib/lantaw/mcp-client.mjs'
+import { authorizeApiRequest } from '@/lib/auth/authorizeApiRequest.mjs'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.NEXT_SERVICE_ROLE_KEY
@@ -102,10 +102,10 @@ function getFileContentGuardrails() {
 }
 
 // Database tools run through a reused in-process MCP connection; no child process per message.
-async function answerRequest(request, onChunk) {
+async function answerRequest(request, onChunk, access) {
   const started = Date.now();
   try {
-    const { prompt, conversationId, userId, history = [] } = await request.json();
+    const { prompt, conversationId, history = [] } = await request.json();
     if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 4000) {
       return NextResponse.json({ error: 'Please enter a question of up to 4,000 characters.' }, { status: 400 });
     }
@@ -122,12 +122,12 @@ async function answerRequest(request, onChunk) {
       const chartIntent = /\b(chart|graph|visualiz\w*)\b/i.test(query);
       let context = {};
       if (['air', 'heat', 'hazards'].includes(topic)) {
-        try { context = await callLantawTool('get_monitoring_snapshot', { municipality_name: query }); }
+        try { context = await getMonitoringSnapshot(access.readDb, query, { provinceId: access.provinceId, weatherKey: process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY }); }
         catch { context = { available: false, message: 'Monitoring data is temporarily unavailable.' }; }
         if (context.needs_location) {
           const lastLocation = recentHistory.filter(message => message.role === 'user').at(-1)?.content;
           if (lastLocation) {
-            try { context = await callLantawTool('get_monitoring_snapshot', { municipality_name: lastLocation }); }
+            try { context = await getMonitoringSnapshot(access.readDb, lastLocation, { provinceId: access.provinceId, weatherKey: process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY }); }
             catch { context = { available: false, message: 'Monitoring data is temporarily unavailable.' }; }
           }
         }
@@ -137,27 +137,27 @@ async function answerRequest(request, onChunk) {
         source = 'Lantaw MCP Monitoring';
       } else if (topic === 'weather') {
         try {
-          context = await callLantawTool('get_municipality_weather', { municipality_name: query });
+          context = await getMunicipalityWeather(access.readDb, query, { provinceId: access.provinceId, weatherKey: process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY });
         } catch {
           context = { available: false, message: 'Live weather data is temporarily unavailable. Please try again shortly.' };
         }
         if (context.needs_location) {
           const lastLocation = recentHistory.filter(message => message.role === 'user').at(-1)?.content;
           if (lastLocation) {
-            try { context = await callLantawTool('get_municipality_weather', { municipality_name: lastLocation }); }
+            try { context = await getMunicipalityWeather(access.readDb, lastLocation, { provinceId: access.provinceId, weatherKey: process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY }); }
             catch { context = { available: false, message: 'Live weather data is temporarily unavailable. Please try again shortly.' }; }
           }
         }
         if (!fileIntent && !chartIntent && topics.length <= 1 && !context.needs_location) aiResponse = weatherReply(context);
         if (context.needs_location || topics.length > 1) {
           let extra;
-          try { extra = await callLantawTool('get_floodwatch_chat_context', { topics: context.needs_location ? topics : topics.filter(value => value !== 'weather') }); }
+          try { extra = await getChatContext(access.readDb, context.needs_location ? topics : topics.filter(value => value !== 'weather'), { provinceId: access.provinceId, municipalityIds: access.municipalityIds }); }
           catch { extra = { available: false, message: 'Some FloodWatch data is temporarily unavailable.' }; }
           context = { municipality_weather: context, floodwatch: extra };
         }
         source = 'Lantaw MCP municipality weather';
       } else if (topic !== 'guidance') {
-        try { context = await callLantawTool('get_floodwatch_chat_context', topics.length > 1 ? { topics } : { topic }); }
+        try { context = await getChatContext(access.readDb, topics.length > 1 ? topics : topic, { provinceId: access.provinceId, municipalityIds: access.municipalityIds }); }
         catch { context = { available: false, message: 'FloodWatch data is temporarily unavailable.' }; }
         if (context.available === false && !fileIntent && !chartIntent) aiResponse = context.message;
         source = 'Lantaw MCP database context';
@@ -184,8 +184,8 @@ async function answerRequest(request, onChunk) {
     // Persist history and API logs after sending the answer, rather than blocking it.
     after(async () => {
       const writes = [logAiSuccess('Lantaw Chatbot', 'Answered via ' + source + ' | STATUS:200 | LATENCY:' + latency + 'ms')];
-      if (userId && supabaseAdmin) writes.push(supabaseAdmin.from('ai_chatbot_conversation').insert({
-        user_id: userId, user_prompt: query, ai_output: aiResponse, ai_source: source,
+      if (supabaseAdmin) writes.push(supabaseAdmin.from('ai_chatbot_conversation').insert({
+        user_id: access.userId, user_prompt: query, ai_output: aiResponse, ai_source: source,
         conversation_id: conversationId, conversation_title: query.slice(0, 80),
       }));
       await Promise.allSettled(writes);
@@ -199,7 +199,15 @@ async function answerRequest(request, onChunk) {
 }
 
 export async function POST(request) {
-  if (!request.headers?.get('accept')?.includes('application/x-ndjson')) return answerRequest(request);
+  const auth = await authorizeApiRequest(request, ['provincial_admin']);
+  if (auth.response) return auth.response;
+  if (!auth.profile.province_id) return NextResponse.json({ error: 'Province assignment required' }, { status: 403 });
+  const { data: municipalities, error: municipalityError } = await auth.db.from('municipality_or_city')
+    .select('municipality_id').eq('province_id', auth.profile.province_id);
+  if (municipalityError) return NextResponse.json({ error: 'Province scope unavailable' }, { status: 503 });
+  const access = { readDb: auth.db, userId: auth.user.id, provinceId: auth.profile.province_id,
+    municipalityIds: (municipalities || []).map(row => row.municipality_id) };
+  if (!request.headers?.get('accept')?.includes('application/x-ndjson')) return answerRequest(request, undefined, access);
   const encoder = new TextEncoder();
   let closed = false;
   const stream = new ReadableStream({
@@ -207,7 +215,7 @@ export async function POST(request) {
     async start(controller) {
       const send = payload => { if (!closed) controller.enqueue(encoder.encode(JSON.stringify(payload) + '\n')); };
       try {
-        const result = await answerRequest(request, content => send({ type: 'partial', response: sanitizeContext(content) }));
+        const result = await answerRequest(request, content => send({ type: 'partial', response: sanitizeContext(content) }), access);
         const data = await result.json();
         send({ type: data.error ? 'error' : 'done', ...data });
       } catch {

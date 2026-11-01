@@ -1,75 +1,55 @@
-import { Asterisk, Map, Camera, Bell } from "lucide-react";
+import { Bell, Camera, MapPinned, Radio, Siren } from "lucide-react"
 
 export default function CitizenFeatures() {
   return (
-    <section className="bg-[#f8f9fa] py-16 px-6 lg:px-12 rounded-[2.5rem] mt-16 mx-2 lg:mx-10 border border-gray-100">
-        <div className="max-w-7xl mx-auto">
-            {/* Header Area */}
-            <div className="mb-10">
-                <span className="text-[#0B50DA] font-bold text-[11px] tracking-widest uppercase">For the Public</span>
-                <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mt-2">Citizen Features</h2>
-            </div>
-            
-            {/* Feature Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* Feature: One-Tap SOS (Wide) */}
-                <div className="bg-white rounded-2xl p-6 lg:p-8 border border-gray-100 shadow-sm col-span-1 lg:col-span-2 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-                    <div className="flex flex-col gap-3 max-w-lg">
-                        <div className="flex items-center gap-2">
-                            <Asterisk className="text-red-700" size={22} strokeWidth={3} />
-                            <h3 className="text-2xl font-bold text-gray-900">One-Tap SOS</h3>
-                        </div>
-                        <p className="text-gray-500 text-sm leading-relaxed">
-                            Instantly broadcast your exact GPS coordinates to the nearest LGU
-                            command center and predefined emergency contacts. Operates even on
-                            low bandwidth.
-                        </p>
-                        <span className="text-red-700 font-bold text-[10px] tracking-widest uppercase mt-3">Critical Priority</span>
-                    </div>
-                    {/* SOS Button Element */}
-                    <div className="bg-red-50 p-4 rounded-3xl shrink-0">
-                        <button className="bg-[#990000] text-white font-bold text-xl rounded-2xl w-24 h-24 shadow-[0_8px_20px_rgba(153,0,0,0.4)] flex items-center justify-center hover:bg-red-900 transition-colors cursor-pointer">
-                            SOS
-                        </button>
-                    </div>
-                </div>
-
-                {/* Feature: Live Safety Map (Standard) */}
-                <div className="bg-white rounded-2xl p-6 lg:p-8 border border-gray-100 shadow-sm flex flex-col">
-                    <Map className="text-primary mb-4" size={26} strokeWidth={2.5} />
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">Participatory Incident</h3>
-                    <p className="text-gray-500 text-sm leading-relaxed">
-                        Participate in local safety by snapping photos of hazards, and see what others are reporting in your exact area.
-                    </p>
-                </div>
-
-                {/* Feature: Snap & Report (Standard) */}
-                <div className="bg-white rounded-2xl p-6 lg:p-8 border border-gray-100 shadow-sm flex flex-col">
-                    <div className="bg-blue-50/50 w-fit p-1 rounded mb-3">
-                        <Camera className="text-primary" size={26} strokeWidth={2.5} />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">Snap & Report</h3>
-                    <p className="text-gray-500 text-sm leading-relaxed">
-                        Submit geo-tagged photos of rising water levels to update the central map.
-                    </p>
-                </div>
-
-                {/* Feature: Official Alerts (Wide) */}
-                <div className="bg-white rounded-2xl p-6 lg:p-8 border border-gray-100 shadow-sm col-span-1 lg:col-span-2 flex flex-col sm:flex-row items-start gap-6">
-                    <div className="bg-[#eef2fc] p-4 rounded-2xl shrink-0">
-                        <Bell className="text-primary" size={26} strokeWidth={2.5} />
-                    </div>
-                    <div className="flex flex-col justify-center mt-1">
-                        <h3 className="text-lg font-bold text-gray-900 mb-2">Official Alerts</h3>
-                        <p className="text-gray-500 text-sm leading-relaxed max-w-xl">
-                            Receive un-ignorable push notifications directly from your local LGU regarding localized flash flood warnings and evacuation orders.
-                        </p>
-                    </div>
-                </div>
-
-            </div>
+    <section className="bg-[#f3f7fc] px-6 py-20 sm:px-10 lg:px-12 lg:py-24">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#1260c7]"><span className="h-1.5 w-1.5 rounded-full bg-[#2c8aff]" /> For the public</span>
+            <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-[#0a1e3a] sm:text-4xl lg:text-5xl">Ready when it matters.</h2>
+            <p className="mt-3 max-w-xl text-base leading-relaxed text-slate-600">Essential tools to help Cebuano communities stay informed, connected, and prepared.</p>
+          </div>
+          <span className="hidden rounded-full border border-blue-100 bg-white px-4 py-2 text-xs font-bold uppercase tracking-widest text-[#1260c7] shadow-sm md:inline-flex">Citizen Features</span>
         </div>
+
+        <div className="grid gap-5 lg:grid-cols-3">
+          <article className="relative flex min-h-[310px] flex-col justify-between overflow-hidden rounded-[28px] bg-[#081b38] p-7 text-white shadow-[0_22px_50px_rgba(8,27,56,0.17)] sm:p-9 lg:col-span-2">
+            <div className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full border border-white/10 bg-red-500/10" />
+            <div className="pointer-events-none absolute right-16 top-10 h-44 w-44 rounded-full border border-white/10" />
+            <div className="relative z-10 flex items-start justify-between gap-4">
+              <span className="inline-flex items-center gap-2 rounded-full border border-red-400/25 bg-red-500/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-red-200"><Radio size={13} /> Critical priority</span>
+              <span className="text-xs font-semibold tracking-[0.2em] text-white/35">01 / 04</span>
+            </div>
+            <div className="relative z-10 mt-8 flex flex-col justify-between gap-8 sm:flex-row sm:items-end">
+              <div className="max-w-lg">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-red-400/20 bg-red-500/15 text-red-300"><Siren size={26} /></div>
+                <h3 className="text-2xl font-bold tracking-tight sm:text-3xl">One-Tap SOS</h3>
+                <p className="mt-3 text-sm leading-7 text-slate-300">Instantly broadcast your exact GPS coordinates to the nearest LGU command center and predefined emergency contacts. Operates even on low bandwidth.</p>
+              </div>
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[26px] border border-red-300/30 bg-gradient-to-br from-[#f63c47] to-[#a90818] text-2xl font-black tracking-wide text-white shadow-[0_0_0_9px_rgba(230,55,68,0.09),0_16px_32px_rgba(0,0,0,0.35)]" aria-label="SOS feature preview">SOS</div>
+            </div>
+          </article>
+
+          <article className="group flex min-h-[310px] flex-col rounded-[28px] border border-[#e1eaf5] bg-white p-7 shadow-[0_12px_35px_rgba(22,56,100,0.05)] transition-all hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(22,56,100,0.1)] sm:p-9">
+            <div className="mb-auto flex items-start justify-between"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e9f2ff] text-[#1260c7]"><MapPinned size={25} /></div><span className="text-xs font-semibold tracking-[0.2em] text-slate-300">02 / 04</span></div>
+            <h3 className="mt-8 text-xl font-bold text-[#0a1e3a]">Participatory Incident</h3>
+            <p className="mt-3 text-sm leading-7 text-slate-600">Participate in local safety by snapping photos of hazards, and see what others are reporting in your exact area.</p>
+          </article>
+
+          <article className="group flex min-h-[240px] flex-col rounded-[28px] border border-[#e1eaf5] bg-white p-7 shadow-[0_12px_35px_rgba(22,56,100,0.05)] transition-all hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(22,56,100,0.1)] sm:p-9">
+            <div className="mb-auto flex items-start justify-between"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e9f2ff] text-[#1260c7]"><Camera size={25} /></div><span className="text-xs font-semibold tracking-[0.2em] text-slate-300">03 / 04</span></div>
+            <h3 className="mt-8 text-xl font-bold text-[#0a1e3a]">Snap &amp; Report</h3>
+            <p className="mt-3 text-sm leading-7 text-slate-600">Submit geo-tagged photos of rising water levels to update the central map.</p>
+          </article>
+
+          <article className="group flex min-h-[240px] flex-col rounded-[28px] border border-[#e1eaf5] bg-white p-7 shadow-[0_12px_35px_rgba(22,56,100,0.05)] transition-all hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(22,56,100,0.1)] sm:p-9 lg:col-span-2">
+            <div className="mb-auto flex items-start justify-between"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e9f2ff] text-[#1260c7]"><Bell size={25} /></div><span className="text-xs font-semibold tracking-[0.2em] text-slate-300">04 / 04</span></div>
+            <h3 className="mt-8 text-xl font-bold text-[#0a1e3a]">Official Alerts</h3>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">Receive urgent notifications directly from your local LGU regarding localized flash flood warnings and evacuation orders.</p>
+          </article>
+        </div>
+      </div>
     </section>
   )
 }

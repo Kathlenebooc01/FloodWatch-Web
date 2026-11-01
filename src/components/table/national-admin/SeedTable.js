@@ -38,6 +38,7 @@ import GeneralInput from "@/components/forms/GeneralInput"
 import SearchInput from "@/components/forms/SearchInput"
 import DeleteSeedAreaModal from "@/components/Seeding/DeleteSeedAreaModal"
 import { supabase } from "@/supabase/util/supabase"
+import { clientApiAuthorization } from '@/lib/auth/clientApiAuthorization'
 
 import Map, { Marker, Source, Layer, NavigationControl } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -556,7 +557,7 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
     try {
       const res = await fetch('/api/seeding/update-area', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...await clientApiAuthorization() },
         body: JSON.stringify({
           municipality_id: selectedRow.municipality_id,
           name: editForm.municipality.trim(),
@@ -627,7 +628,7 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
     try {
       const res = await fetch('/api/seeding/delete-area', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...await clientApiAuthorization() },
         body: JSON.stringify({
           municipality_id: selectedRow?.municipality_id || null,
           province_id: selectedRow?.province_id || null
