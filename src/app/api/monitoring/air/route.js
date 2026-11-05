@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { aqiLevel } from '@/lib/monitoring/aqiClassification.mjs';
-import { getSelectedAirQuality } from '@/lib/monitoring/latestAirQuality.mjs';
+import { getLatestAirQuality } from '@/lib/monitoring/latestAirQuality.mjs';
+import { isCurrentAirReading } from '@/lib/monitoring/airQualityFreshness';
 
 // The air map resolves one stored observation per municipality.
 export async function GET() {
@@ -19,7 +20,7 @@ export async function GET() {
     if (municipalityResult.error) throw municipalityResult.error;
     municipalities = municipalityResult.data || [];
     weather = weatherResult.data || [];
-    readings = await getSelectedAirQuality(db, municipalities);
+    readings = await getLatestAirQuality(db, municipalities);
   } catch (error) {
     console.error('Cannot read air quality observations:', error);
     return NextResponse.json({ error: 'Air quality data is unavailable' }, { status: 503 });
@@ -42,7 +43,7 @@ export async function GET() {
     const statusLevel = aqiLevel(null, cleanStatus);
     if (numericLevel && statusLevel && numericLevel !== statusLevel) {
       console.warn('Air quality AQI/status mismatch', {
-        municipality_id: item.municipality_id,
+        municipality_id: municipality.municipality_id,
         recorded_at: reading.recorded_at,
         aqi: reading.aqi,
         status: cleanStatus,
@@ -66,7 +67,7 @@ export async function GET() {
       co: reading?.co ?? null,
       dominant_pollutant: reading?.dominant_pollutant ?? null,
       air_recorded_at: reading?.recorded_at ?? null,
-      air_data_current: false,
+      air_data_current: isCurrentAirReading(reading?.recorded_at),
       air_quality_status: cleanStatus,
       ...(fromOpenAq ? {
         air_source: 'OpenAQ / Clarity',
@@ -75,6 +76,6 @@ export async function GET() {
       } : {}),
     };
   });
-  return NextResponse.json({ success: true, source: 'selected-batch', count: data.length, data },
+  return NextResponse.json({ success: true, source: 'latest', count: data.length, data },
     { headers: { 'Cache-Control': 'no-store' } });
 }

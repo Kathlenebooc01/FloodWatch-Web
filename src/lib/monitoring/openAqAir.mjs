@@ -43,16 +43,14 @@ async function api(path, key, fetcher) {
 }
 
 export async function fetchOpenAqReading(key, { now = Date.now(), fetcher = fetch } = {}) {
-  const end = Math.floor(now / HOUR) * HOUR;
-  const [latest, hours] = await Promise.all([
-    api('locations/' + STATION.id + '/latest', key, fetcher),
-    api('sensors/' + STATION.sensorId + '/hours?datetime_from=' + encodeURIComponent(new Date(end - 12 * HOUR).toISOString()) + '&datetime_to=' + encodeURIComponent(new Date(end).toISOString()) + '&limit=100', key, fetcher),
-  ]);
+  const latest = await api('locations/' + STATION.id + '/latest', key, fetcher);
   const measurement = latest.find(item => item.sensorsId === STATION.sensorId && item.locationsId === STATION.id);
   const observed = Date.parse(measurement?.datetime?.utc);
   if (!measurement || typeof measurement.value !== 'number' || !Number.isFinite(measurement.value) || measurement.value < 0
-    || !Number.isFinite(observed) || observed > now + 60000 || now - observed > 2 * HOUR) throw new Error('OpenAQ station has no recent valid PM2.5 reading');
-  const nowCast = calculateNowCast(hours, now);
+    || !Number.isFinite(observed) || observed > now || now - observed > 6 * HOUR) throw new Error('OpenAQ station has no valid PM2.5 reading within six hours');
+  const end = Math.floor(observed / HOUR) * HOUR;
+  const hours = await api('sensors/' + STATION.sensorId + '/hours?datetime_from=' + encodeURIComponent(new Date(end - 12 * HOUR).toISOString()) + '&datetime_to=' + encodeURIComponent(new Date(end).toISOString()) + '&limit=100', key, fetcher);
+  const nowCast = calculateNowCast(hours, observed);
   if (!nowCast) throw new Error('Not enough recent hourly data to calculate PM2.5 NowCast AQI');
   return { aqi: nowCast.aqi, pm2_5: measurement.value, recorded_at: new Date(observed).toISOString(),
     status: aqiStatus(nowCast.aqi) + ' | ' + SOURCE_TAG, dominant_pollutant: 'PM2.5',
@@ -64,7 +62,10 @@ let pending;
 let lastAttempt = 0;
 let cached;
 export async function syncOpenAqAir(db, municipalities, key) {
-  if (!key) return { error: 'OpenAQ is not configured' };
+  if (!key) {
+    console.error('OpenAQ sync rejected: API key is missing');
+    return { status: 'rejected', error: 'OpenAQ is not configured' };
+  }
   if (pending) return pending;
   if (Date.now() - lastAttempt < 10 * 60000) return cached;
   lastAttempt = Date.now();
@@ -76,18 +77,25 @@ export async function syncOpenAqAir(db, municipalities, key) {
       const id = municipality.municipality_id;
       const { data, error } = await db.from('air_quality').select('id,aqi').eq('municipality_id', id).eq('recorded_at', reading.recorded_at).eq('status', reading.status).limit(1);
       if (error) throw new Error('Cannot check saved OpenAQ reading');
+      let status = 'existing';
       if (!data?.length) {
         const { error: insertError } = await db.from('air_quality').insert({ municipality_id: id, aqi: reading.aqi,
           pm2_5: reading.pm2_5, pm10: null, so2: null, no2: null, o3: null, co: null,
           status: reading.status, dominant_pollutant: reading.dominant_pollutant, recorded_at: reading.recorded_at });
         if (insertError) throw new Error('Cannot save OpenAQ reading: ' + insertError.message);
+        status = 'saved';
       } else if (data[0].aqi !== reading.aqi) {
         // A new hourly aggregate can change NowCast before the latest raw sample changes.
         const { error: updateError } = await db.from('air_quality').update({ aqi: reading.aqi }).eq('id', data[0].id).eq('status', reading.status);
         if (updateError) throw new Error('Cannot refresh saved OpenAQ AQI');
+        status = 'updated';
       }
-      cached = { municipality_id: id, reading };
-    } catch (error) { cached = { error: error.message }; }
+      console.info('OpenAQ sync ' + status, { municipality_id: id, recorded_at: reading.recorded_at });
+      cached = { status, municipality_id: id, reading };
+    } catch (error) {
+      console.error('OpenAQ sync rejected:', error);
+      cached = { status: 'rejected', error: error.message };
+    }
     return cached;
   })();
   try { return await pending; } finally { pending = null; }

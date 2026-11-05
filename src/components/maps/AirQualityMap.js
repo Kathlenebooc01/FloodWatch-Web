@@ -14,8 +14,9 @@ import SearchInput from '@/components/forms/SearchInput';
 import MapFilterDropdown from './MapFilterDropdown';
 import IndicatorLegendPlacement from '@/components/monitoring/IndicatorLegendPlacement';
 import { setCachedMonitoringData } from '@/lib/cache/monitoringCache';
-import { getSelectedAirQuality } from '@/lib/monitoring/latestAirQuality.mjs';
+import { getLatestAirQuality } from '@/lib/monitoring/latestAirQuality.mjs';
 import { aqiLevel } from '@/lib/monitoring/aqiClassification.mjs';
+import { isCurrentAirReading } from '@/lib/monitoring/airQualityFreshness';
 
 // ─── USA AQI Layer Style Definitions for GPU Canvas Rendering ────────────────
 const pinCircleLayer = {
@@ -219,7 +220,7 @@ export default function AirQualityMap({ isFullscreen = false, legendContainerId 
   useEffect(() => {
     let isMounted = true;
 
-    // Fetch the selected air-quality observation for each municipality.
+    // Fetch the latest air-quality observation for each municipality.
     const fetchData = async () => {
       // 1. Fast load from telemetry API
       try {
@@ -266,7 +267,7 @@ export default function AirQualityMap({ isFullscreen = false, legendContainerId 
 
         const munis = munisRes.data || [];
         if (munisRes.error) throw munisRes.error;
-        const airRecords = await getSelectedAirQuality(supabase, munis);
+        const airRecords = await getLatestAirQuality(supabase, munis);
         if (!isMounted) return;
         const weatherRecords = weatherRes.data || [];
 
@@ -315,7 +316,7 @@ export default function AirQualityMap({ isFullscreen = false, legendContainerId 
             air_station: latestAir.status?.includes('OpenAQ:6455462;') ? 'Lapu-Lapu City' : null,
             air_aqi_method: latestAir.status?.includes('OpenAQ:6455462;') ? 'PM2.5 US AQI (NowCast)' : null,
             air_recorded_at: latestAir.recorded_at ?? null,
-            air_data_current: false,
+            air_data_current: isCurrentAirReading(latestAir.recorded_at),
 
             // Observation feeds fields from weather_telemetry
             temperature: latestWeather.temperature ?? null,
@@ -561,7 +562,12 @@ export default function AirQualityMap({ isFullscreen = false, legendContainerId 
                   {selectedMuni.municipality_name}
                 </CardHeader>
                 <CardBasedText className="text-[11px] text-gray-400 font-medium">
-                  September 12 Air Quality Snapshot
+                  Air Quality Observation
+                </CardBasedText>
+                <CardBasedText className="text-[11px] text-gray-500 font-semibold">
+                  {selectedMuni.air_recorded_at
+                    ? (isCurrentAirReading(selectedMuni.air_recorded_at) ? 'Current' : 'Outdated')
+                    : 'No Data'}
                 </CardBasedText>
               </div>
               <button
