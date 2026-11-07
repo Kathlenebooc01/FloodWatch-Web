@@ -56,7 +56,7 @@ export default function ApprovedandDispatchSideModal({ requestId, items, isOpen,
         }
 
         // Check if there is enough quantity in the utilities table
-        if (utilitiesId) {
+        if (utilitiesId && totalToDeduct > 0) {
             const { data: utilityData, error: utilityFetchError } = await supabase
                 .from('utilities')
                 .select('quantity')
@@ -87,7 +87,7 @@ export default function ApprovedandDispatchSideModal({ requestId, items, isOpen,
                 allocationsToInsert.push({
                     request_id: requestId,
                     utilities_id: utilitiesId,
-                    quantity_allocated: parseInt(b.quantity) || 0,
+                    quantity_allocated: Math.max(1, parseInt(b.quantity) || 1),
                     batch: 'Pending_Dispatch',
                     delivered_at: b.expectedDate ? b.expectedDate.toISOString() : null,
                     approved_by: currentAdminId
@@ -98,7 +98,7 @@ export default function ApprovedandDispatchSideModal({ requestId, items, isOpen,
             allocationsToInsert.push({
                 request_id: requestId,
                 utilities_id: utilitiesId,
-                quantity_allocated: requestedQuantity,
+                quantity_allocated: Math.max(1, requestedQuantity),
                 batch: 'Pending_Dispatch',
                 delivered_at: expectedDate ? expectedDate.toISOString() : null,
                 approved_by: currentAdminId
