@@ -48,7 +48,6 @@ import {
 let cachedReports = null;
 let cachedDistressSignals = null;
 
-const reportStatuses = ["Pending", "Verified", "Dispatched", "Done"];
 const reportStatusForDisplay = (status) => {
   const value = (status || "").toLowerCase();
   if (value === "dispatched") return "Dispatched";
@@ -403,7 +402,6 @@ export default function LGUTable() {
 
   // Pagination State
   const [reportPage, setReportPage] = useState(1)
-  const [reportStatusFilter, setReportStatusFilter] = useState("All")
   const [distressPage, setDistressPage] = useState(1)
   const itemsPerPage = 8
 
@@ -567,19 +565,7 @@ export default function LGUTable() {
 
   // Group Situational Reports by Municipality for the Hierarchy View
   const reportHierarchy = useMemo(() => buildReportHierarchy(reports), [reports]);
-  const reportStatusCounts = useMemo(() => reports.reduce((counts, report) => {
-    const status = reportStatusForDisplay(report.status);
-    if (status) counts[status] += 1;
-    return counts;
-  }, { Pending: 0, Verified: 0, Dispatched: 0, Done: 0 }), [reports]);
-  const groupedReports = useMemo(() => reportStatusFilter === "All" ? reportHierarchy.groups : reportHierarchy.groups
-    .map(group => ({ ...group, reports: group.reports.flatMap(report => {
-      const updates = report.updates.filter(update => reportStatusForDisplay(update.status) === reportStatusFilter);
-      if (reportStatusForDisplay(report.status) !== reportStatusFilter && updates.length === 0) return [];
-      const matching = [reportStatusForDisplay(report.status) === reportStatusFilter ? report : null, ...updates].filter(Boolean);
-      return [{ ...report, updates, latestReport: matching.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))[0] }];
-    }) }))
-    .filter(group => group.reports.length > 0), [reportHierarchy, reportStatusFilter]);
+  const groupedReports = reportHierarchy.groups;
 
   // Group Distress Signals / Escalations by Municipality for Red Hierarchical Table
   const groupedDistressSignals = useMemo(() => {
@@ -1026,17 +1012,6 @@ export default function LGUTable() {
       </div>
 
       {/* â”€â”€ Table Container â”€â”€ */}
-      {activeTab === "Report Table" && (
-        <div className="flex flex-wrap items-center gap-2" aria-label="Filter reports by status">
-          {["All", ...reportStatuses].map(status => (
-            <button key={status} type="button" aria-pressed={reportStatusFilter === status}
-              onClick={() => { setReportStatusFilter(status); setReportPage(1) }}
-              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${reportStatusFilter === status ? "border-primary bg-primary text-white" : "border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-primary"}`}>
-              {status} <span className="ml-1 tabular-nums">{status === "All" ? reports.length : reportStatusCounts[status]}</span>
-            </button>
-          ))}
-        </div>
-      )}
       <Table>
         <TableScrollWrapper>
           <DataTable>
@@ -1100,7 +1075,7 @@ export default function LGUTable() {
                                 <span className="bg-gray-200/80 text-gray-700 text-[11px] font-bold px-2 py-0.5 rounded-full ml-1">
                                   {group.reports.length} {group.reports.length === 1 ? "Report" : "Reports"}
                                 </span>
-                                {group.pendingCount > 0 && ["All", "Pending"].includes(reportStatusFilter) && (
+                                {group.pendingCount > 0 && (
                                   <span className="relative flex size-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                                     <span className="relative inline-flex rounded-full size-2 bg-amber-500" />
