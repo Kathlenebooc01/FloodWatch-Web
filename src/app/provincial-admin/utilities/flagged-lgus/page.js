@@ -56,31 +56,32 @@ export default function FlaggedLGUsPage() {
     timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: value.includes('T') ? 'short' : undefined,
   }).format(new Date(value)) : '—'
 
-  return <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-    <div className="border-b border-slate-100 px-5 py-5 sm:px-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Flagged LGUs</h1>
-          <p className="mt-1 text-sm text-slate-500">Overdue utility flags and their history.</p>
+  return <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white px-5 py-6 sm:px-7">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="whitespace-nowrap text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Flagged LGUs</h1>
+          <p className="mt-1.5 text-sm text-slate-500">Overdue utility flags and their history.</p>
         </div>
-        <span className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700">
+        <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3.5 py-1.5 text-xs font-semibold text-red-700">
+          <span className="size-2 rounded-full bg-red-500" aria-hidden="true" />
           {activeCount} active {activeCount === 1 ? 'flag' : 'flags'}
         </span>
       </div>
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <div className="relative w-full max-w-sm">
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <div className="relative w-full sm:max-w-sm">
           <Search aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
           <input aria-label="Search flags" placeholder="Search name, municipality, request or reason"
             value={query} onChange={event => { setQuery(event.target.value); setCurrentPage(1) }}
-            className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-9 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-9 text-sm text-slate-800 shadow-sm outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
           {query && <button type="button" aria-label="Clear search" onClick={() => { setQuery(''); setCurrentPage(1) }}
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X className="size-4" /></button>}
         </div>
         <select aria-label="Flag status" value={filter} onChange={event => { setFilter(event.target.value); setCurrentPage(1) }}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
           <option>All</option><option>Active</option><option>Cleared</option>
         </select>
-        {!isLoading && <span className="text-xs text-slate-500">{visible.length} {visible.length === 1 ? 'result' : 'results'}</span>}
+        {!isLoading && <span className="text-xs font-medium text-slate-500">{visible.length} {visible.length === 1 ? 'result' : 'results'}</span>}
       </div>
     </div>
 
@@ -93,12 +94,12 @@ export default function FlaggedLGUsPage() {
           <col className="w-[180px]" /><col className="w-[155px]" /><col className="w-[160px]" />
           <col className="w-[90px]" /><col className="w-[105px]" />
         </colgroup>
-        <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-600">
           <tr>{['LGU Headmaster', 'Municipality/City', 'Request Number', 'Borrowed Utilities', 'Expected Return', 'Days Overdue', 'Reason', 'Remarks', 'Date Flagged', 'Status', 'Actions'].map(label =>
             <th key={label} scope="col" className="border-b border-slate-200 px-4 py-3">{label}</th>)}</tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {pageRows.map(flag => <tr key={flag.flag_id} className="align-top text-slate-700 hover:bg-slate-50/70">
+          {pageRows.map(flag => <tr key={flag.flag_id} className="align-top text-slate-700 transition-colors hover:bg-blue-50/40">
             <td className="px-4 py-4 font-medium text-slate-900">{flag.lgu?.full_name || '—'}</td>
             <td className="px-4 py-4">{flag.lgu?.municipality_or_city?.name || '—'}</td>
             <td className="px-4 py-4 font-mono text-xs" title={flag.request_id}>{flag.request_id.slice(0, 8)}</td>

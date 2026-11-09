@@ -48,6 +48,16 @@ import {
 let cachedReports = null;
 let cachedDistressSignals = null;
 
+const reportStatuses = ["Pending", "Verified", "Dispatched", "Done"];
+const reportStatusForDisplay = (status) => {
+  const value = (status || "").toLowerCase();
+  if (value === "dispatched") return "Dispatched";
+  if (value === "done") return "Done";
+  if (["verified", "accepted", "approved"].includes(value)) return "Verified";
+  if (["pending", "pending_ai", "ready", "review", "submitted", ""].includes(value)) return "Pending";
+  return null;
+};
+
 const getInitialReports = () => {
   if (cachedReports) return cachedReports;
   if (typeof window !== "undefined") {
@@ -393,6 +403,7 @@ export default function LGUTable() {
 
   // Pagination State
   const [reportPage, setReportPage] = useState(1)
+  const [reportStatusFilter, setReportStatusFilter] = useState("All")
   const [distressPage, setDistressPage] = useState(1)
   const itemsPerPage = 8
 
@@ -556,7 +567,19 @@ export default function LGUTable() {
 
   // Group Situational Reports by Municipality for the Hierarchy View
   const reportHierarchy = useMemo(() => buildReportHierarchy(reports), [reports]);
-  const groupedReports = reportHierarchy.groups;
+  const reportStatusCounts = useMemo(() => reports.reduce((counts, report) => {
+    const status = reportStatusForDisplay(report.status);
+    if (status) counts[status] += 1;
+    return counts;
+  }, { Pending: 0, Verified: 0, Dispatched: 0, Done: 0 }), [reports]);
+  const groupedReports = useMemo(() => reportStatusFilter === "All" ? reportHierarchy.groups : reportHierarchy.groups
+    .map(group => ({ ...group, reports: group.reports.flatMap(report => {
+      const updates = report.updates.filter(update => reportStatusForDisplay(update.status) === reportStatusFilter);
+      if (reportStatusForDisplay(report.status) !== reportStatusFilter && updates.length === 0) return [];
+      const matching = [reportStatusForDisplay(report.status) === reportStatusFilter ? report : null, ...updates].filter(Boolean);
+      return [{ ...report, updates, latestReport: matching.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))[0] }];
+    }) }))
+    .filter(group => group.reports.length > 0), [reportHierarchy, reportStatusFilter]);
 
   // Group Distress Signals / Escalations by Municipality for Red Hierarchical Table
   const groupedDistressSignals = useMemo(() => {
@@ -673,6 +696,13 @@ export default function LGUTable() {
   const getStatusBadge = (status, isRedTheme = false) => {
     const raw = status || "Pending";
     const s = raw.toLowerCase();
+
+    if (s === "dispatched") {
+      return <span className="bg-sky-50 text-sky-700 border border-sky-200 px-3 py-1 rounded-full text-xs font-bold tracking-wide inline-flex items-center gap-1.5 shadow-2xs"><span className="size-1.5 rounded-full bg-sky-500" />Dispatched</span>;
+    }
+    if (s === "done") {
+      return <span className="bg-green-50 text-green-700 border border-green-200 px-3 py-1 rounded-full text-xs font-bold tracking-wide inline-flex items-center gap-1.5 shadow-2xs"><CheckCircle2 className="size-3.5" />Done</span>;
+    }
 
     if (s === "acknowledged") {
       return <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full text-xs font-bold tracking-wide inline-flex items-center gap-1.5 shadow-2xs"><BadgeCheck className="size-3.5" />Acknowledged</span>;
@@ -996,6 +1026,17 @@ export default function LGUTable() {
       </div>
 
       {/* â”€â”€ Table Container â”€â”€ */}
+      {activeTab === "Report Table" && (
+        <div className="flex flex-wrap items-center gap-2" aria-label="Filter reports by status">
+          {["All", ...reportStatuses].map(status => (
+            <button key={status} type="button" aria-pressed={reportStatusFilter === status}
+              onClick={() => { setReportStatusFilter(status); setReportPage(1) }}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${reportStatusFilter === status ? "border-primary bg-primary text-white" : "border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-primary"}`}>
+              {status} <span className="ml-1 tabular-nums">{status === "All" ? reports.length : reportStatusCounts[status]}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <Table>
         <TableScrollWrapper>
           <DataTable>
@@ -1037,7 +1078,7 @@ export default function LGUTable() {
                   ) : groupedReports.length > 0 ? (
                     paginatedReports.map((group) => {
                       const isExpanded = expandedMunicipalities[group.municipality_id] ?? true;
-                      const latest = group.latestReport;
+                      const latest = group.reports[0]?.latestReport || group.latestReport;
 
                       return (
                         <React.Fragment key={`group-${group.municipality_id}`}>
@@ -1059,7 +1100,7 @@ export default function LGUTable() {
                                 <span className="bg-gray-200/80 text-gray-700 text-[11px] font-bold px-2 py-0.5 rounded-full ml-1">
                                   {group.reports.length} {group.reports.length === 1 ? "Report" : "Reports"}
                                 </span>
-                                {group.pendingCount > 0 && (
+                                {group.pendingCount > 0 && ["All", "Pending"].includes(reportStatusFilter) && (
                                   <span className="relative flex size-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                                     <span className="relative inline-flex rounded-full size-2 bg-amber-500" />
@@ -1162,7 +1203,7 @@ export default function LGUTable() {
                                   <TableData>
                                     {getStatusBadge(item.status)}
                                     {item.updates.length > 0 && (
-                                      <div className="text-[11px] text-gray-500 mt-1">Latest: {item.latestReport.status?.toLowerCase() === "pending_ai" ? "Pending" : item.latestReport.status || "Pending"}</div>
+                                      <div className="text-[11px] text-gray-500 mt-1">Latest: {reportStatusForDisplay(item.latestReport.status) || item.latestReport.status || "Pending"}</div>
                                     )}
                                   </TableData>
                                 </TableRow>
@@ -1628,10 +1669,10 @@ export default function LGUTable() {
               <div className="p-6 pt-4 border-t border-gray-100 bg-gray-50/50 shrink-0 space-y-2.5">
                 {(() => {
                   if (selectedReport.parent_report_id) {
-                    if (selectedReport.status?.toLowerCase() === "verified") {
+                    if (["verified", "dispatched", "done"].includes(selectedReport.status?.toLowerCase())) {
                       return (
                         <div className="p-3.5 bg-emerald-50 text-emerald-800 border border-emerald-200 text-center font-bold text-sm rounded-2xl flex items-center justify-center gap-2">
-                          <BadgeCheck className="size-5" /> This update has been verified.
+                          <BadgeCheck className="size-5" /> This update is {selectedReport.status?.toLowerCase() === "done" ? "done" : selectedReport.status?.toLowerCase() === "dispatched" ? "dispatched" : "verified"}.
                         </div>
                       );
                     }
@@ -1650,7 +1691,17 @@ export default function LGUTable() {
                   const st = (selectedReport.status || "").toLowerCase();
                   const isVerified = st === "accepted" || st === "verified" || st.includes("approved");
                   const isRejected = st === "rejected";
+                  const isDispatched = st === "dispatched";
+                  const isDone = st === "done";
                   const isResolved = st === "resolved" || st === "completed";
+
+                  if (isDispatched || isDone) {
+                    return (
+                      <div className="p-3.5 bg-sky-50 text-sky-800 border border-sky-200 text-center font-bold text-sm rounded-2xl flex items-center justify-center gap-2">
+                        <CheckCircle2 className="size-5" /> This report is {isDone ? "done" : "dispatched"}.
+                      </div>
+                    );
+                  }
 
                   if (isVerified) {
                     return (

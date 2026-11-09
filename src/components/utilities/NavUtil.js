@@ -84,7 +84,7 @@ export default function NavUtil() {
               href={link.href} 
               className="w-full flex items-center justify-center gap-2"
             >
-              <span>{link.name}</span>
+              <span className={link.href === "/provincial-admin/utilities/flagged-lgus" ? "whitespace-nowrap" : undefined}>{link.name}</span>
               {link.badge && !isViewingRequest && pendingRequestsCount > 0 && (
                 <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 text-[10px] font-bold text-white bg-red-600 rounded-full shadow-2xs animate-pulse">
                   {pendingRequestsCount > 99 ? '99+' : pendingRequestsCount}
