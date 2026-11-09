@@ -21,6 +21,8 @@ import SearchInput from '@/components/forms/SearchInput';
 import MapFilterDropdown from './MapFilterDropdown';
 import IndicatorLegendPlacement from '@/components/monitoring/IndicatorLegendPlacement';
 import { getCachedMonitoringData, setCachedMonitoringData } from '@/lib/cache/monitoringCache';
+import { getLatestWeatherTelemetry } from '@/lib/monitoring/latestWeatherTelemetry.mjs';
+import { getRecentExtremeCaution } from '@/lib/monitoring/recentExtremeCaution.mjs';
 
 // ─── PAGASA Heat Index Categories & Guidelines ──────────────────────────────
 export const HEAT_INDEX_LEGEND = [
@@ -236,10 +238,10 @@ export default function HeatIndexMap({ isFullscreen = false, legendContainerId }
   useEffect(() => {
     let isMounted = true;
 
-    const fetchHeatTelemetryData = async () => {
+    const fetchHeatTelemetryData = async (forceFresh = false) => {
       // 1. Fast load from telemetry API
       try {
-        const res = await fetch('/api/monitoring/telemetry');
+        const res = await fetch(forceFresh ? '/api/monitoring/telemetry?fresh=true' : '/api/monitoring/telemetry');
         if (res.ok) {
           const json = await res.json();
           if (Array.isArray(json?.data) && json.data.length > 0) {
@@ -285,19 +287,20 @@ export default function HeatIndexMap({ isFullscreen = false, legendContainerId }
 
       // 2. Direct Supabase fallback
       try {
-        const [munisRes, weatherRes] = await Promise.all([
-          supabase.from('municipality_or_city').select('*'),
-          supabase.from('weather_telemetry').select('*').order('fetched_at', { ascending: false }).limit(100)
-        ]);
+        const munisRes = await supabase.from('municipality_or_city').select('*');
 
         if (!isMounted) return;
 
         const munis = munisRes.data || [];
-        const weatherRecords = weatherRes.data || [];
+        if (munisRes.error) throw munisRes.error;
+        const [weatherMap, recentExtremeCaution] = await Promise.all([
+          getLatestWeatherTelemetry(supabase, munis),
+          getRecentExtremeCaution(supabase),
+        ]);
 
         const merged = munis.map((muni) => {
           const id = muni.municipality_id || muni.id;
-          const latestWeather = weatherRecords.find((w) => w.municipality_id === id) || {};
+          const latestWeather = weatherMap.get(id) || {};
 
           const latVal = muni.center_latitude ?? muni.latitude;
           const lngVal = muni.center_longitude ?? muni.longitude;
@@ -335,6 +338,7 @@ export default function HeatIndexMap({ isFullscreen = false, legendContainerId }
             humidity: humidity,
             heat_index: heatIdx,
             heat_index_category: heatCategory,
+            recent_extreme_caution: recentExtremeCaution.get(id) || null,
             heat_index_level: level,
             wind_speed: latestWeather.wind_speed != null ? Number(latestWeather.wind_speed) : null,
             rainfall_mm: latestWeather.rainfall_mm != null ? Number(latestWeather.rainfall_mm) : null,
@@ -371,14 +375,14 @@ export default function HeatIndexMap({ isFullscreen = false, legendContainerId }
         'postgres_changes',
         { event: '*', schema: 'public', table: 'weather_telemetry' },
         () => {
-          fetchHeatTelemetryData();
+          fetchHeatTelemetryData(true);
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'municipality_or_city' },
         () => {
-          fetchHeatTelemetryData();
+          fetchHeatTelemetryData(true);
         }
       )
       .subscribe();
@@ -398,6 +402,7 @@ export default function HeatIndexMap({ isFullscreen = false, legendContainerId }
       if (!matchSearch) return false;
 
       if (filterCategory === 'ALL') return true;
+      if (filterCategory === 'RECENT_EXTREME_CAUTION') return Boolean(item.recent_extreme_caution);
       if (filterCategory === 'DANGER_GROUP') {
         return item.heat_index_level >= 4; // Danger & Extreme Danger
       }
@@ -442,11 +447,12 @@ export default function HeatIndexMap({ isFullscreen = false, legendContainerId }
 
   const heatIndexFilterOptions = useMemo(() => [
     { value: 'ALL', label: 'All Categories', badge: `${heatData.length}`, color: '#3b82f6' },
+    { value: 'RECENT_EXTREME_CAUTION', label: 'Extreme Caution · Past 7 Days', badge: `${heatData.filter(item => item.recent_extreme_caution).length}`, color: '#f97316' },
     { value: 'DANGER_GROUP', label: 'Danger & Extreme', badge: '≥ 42°C', color: '#ef4444' },
     { value: 'EXTREME_CAUTION', label: 'Extreme Caution', badge: '33.0–41.9°C', color: '#f97316' },
     { value: 'CAUTION', label: 'Caution', badge: '27.0–32.9°C', color: '#eab308' },
     { value: 'NORMAL', label: 'Normal', badge: '< 27°C', color: '#22c55e' },
-  ], [heatData.length]);
+  ], [heatData]);
 
   const onMapClick = useCallback((event) => {
     const feature = event.features && event.features[0];
@@ -577,6 +583,15 @@ export default function HeatIndexMap({ isFullscreen = false, legendContainerId }
                   {selectedDetails.description}
                 </p>
               </div>
+
+              {selectedMuni.recent_extreme_caution && (
+                <div className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-900">
+                  <span className="font-bold">Extreme Caution recorded in the past 7 days:</span>{' '}
+                  {selectedMuni.recent_extreme_caution.heat_index}°C on{' '}
+                  {new Date(selectedMuni.recent_extreme_caution.fetched_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' })}.
+                  The main marker shows the latest reading.
+                </div>
+              )}
 
               {/* Associated Telemetry (Temperature, Humidity, Wind Speed) */}
               <div className="grid gap-2">

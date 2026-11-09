@@ -65,6 +65,7 @@ export default function HazardMap({ isFullscreen = false, legendContainerId }) {
 
   const [cursor, setCursor] = useState('auto');
   const [mapError, setMapError] = useState(null);
+  const [useFallbackStyle, setUseFallbackStyle] = useState(false);
   const mapRef = useRef(null);
 
   const defaultMapStyle = process.env.NEXT_PUBLIC_MAPBOX_STYLE || DEFAULT_MAPBOX_STYLE;
@@ -281,11 +282,24 @@ export default function HazardMap({ isFullscreen = false, legendContainerId }) {
         touchPitch={true}
         cooperativeGestures={false}
         style={{ width: '100%', height: '100%' }}
-        mapStyle={isSatellite ? satelliteMapStyle : defaultMapStyle}
+        mapStyle={isSatellite ? satelliteMapStyle : useFallbackStyle ? 'mapbox://styles/mapbox/light-v11' : defaultMapStyle}
+        styleDiffing={false}
         mapboxAccessToken={mapboxToken}
+        onLoad={() => queueMicrotask(() => setMapError(null))}
         onError={(e) => {
-          console.error("Mapbox map error:", e);
-          setMapError(e?.error?.message || "Failed to load Mapbox style or tileset. Check Mapbox access token.");
+          const message = e?.error?.message || e?.error?.error?.message || e?.message;
+          if (!message) return;
+          if (!isSatellite && !useFallbackStyle && message === 'Failed to load Mapbox style or tileset. Check Mapbox access token.') {
+            queueMicrotask(() => {
+              setUseFallbackStyle(true);
+              setMapError(null);
+            });
+            return;
+          }
+          const resource = e?.error?.url || e?.sourceId || e?.error?.sourceId;
+          const detail = resource ? `${message} (${resource})` : message;
+          console.warn('Mapbox map issue:', detail);
+          queueMicrotask(() => setMapError(detail));
         }}
       >
         <NavigationControl position="top-right" />
@@ -303,7 +317,14 @@ export default function HazardMap({ isFullscreen = false, legendContainerId }) {
                 visibility: activeHazard === 'flood' ? 'visible' : 'none'
               }}
               paint={{
-                'fill-color': [
+                'fill-color': isSatellite ? [
+                  'match',
+                  ['to-number', ['coalesce', ['get', 'Var'], ['get', 'HAZ'], ['get', 'Hazard'], 1]],
+                  1, '#83C4FF',
+                  2, '#5CAEFF',
+                  3, '#378FEF',
+                  '#5CAEFF'
+                ] : [
                   'case',
                   ['boolean', ['feature-state', 'hover'], false],
                   '#1d4ed8',
@@ -316,7 +337,7 @@ export default function HazardMap({ isFullscreen = false, legendContainerId }) {
                     '#1D4ED8'
                   ]
                 ],
-                'fill-opacity': isSatellite ? 0.55 : 0.65
+                'fill-opacity': isSatellite ? 0.72 : 0.65
               }}
             />
             <Layer
@@ -329,9 +350,9 @@ export default function HazardMap({ isFullscreen = false, legendContainerId }) {
                 visibility: activeHazard === 'flood' ? 'visible' : 'none'
               }}
               paint={{
-                'line-color': isSatellite ? '#60A5FA' : '#1E40AF',
-                'line-width': isSatellite ? 2 : 1.5,
-                'line-opacity': 0.9
+                'line-color': isSatellite ? '#8BC8FF' : '#1E40AF',
+                'line-width': isSatellite ? 0.8 : 1.5,
+                'line-opacity': isSatellite ? 0.7 : 0.9
               }}
             />
           </Source>
@@ -663,7 +684,7 @@ export default function HazardMap({ isFullscreen = false, legendContainerId }) {
           <div className="pointer-events-auto flex items-center gap-2 bg-amber-600/95 text-white backdrop-blur-xl border border-amber-500 shadow-xl px-3.5 py-2 rounded-xl text-xs font-semibold animate-in fade-in max-w-lg">
             <AlertCircle className="size-4 shrink-0 text-white" />
             <span className="flex-1">
-              Notice: Map issue ({mapError}). If deploying on Vercel, please ensure NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is configured in Vercel Settings.
+              Map issue: {mapError}
             </span>
             <button 
               type="button" 

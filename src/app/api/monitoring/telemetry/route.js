@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { isCurrentAirReading } from '@/lib/monitoring/airQualityFreshness';
 import { getLatestAirQuality } from '@/lib/monitoring/latestAirQuality.mjs';
+import { getLatestWeatherTelemetry } from '@/lib/monitoring/latestWeatherTelemetry.mjs';
+import { getRecentExtremeCaution } from '@/lib/monitoring/recentExtremeCaution.mjs';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.NEXT_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -32,28 +34,16 @@ export async function GET(request) {
   }
 
   try {
-    const [munisRes, weatherRes] = await Promise.all([
-      supabaseAdmin
-        .from('municipality_or_city')
-        .select('municipality_id, name, center_latitude, center_longitude, province_id'),
-      supabaseAdmin
-        .from('weather_telemetry')
-        .select('*')
-        .order('fetched_at', { ascending: false })
-        .limit(200)
-    ]);
+    const munisRes = await supabaseAdmin.from('municipality_or_city')
+      .select('municipality_id, name, center_latitude, center_longitude, province_id');
 
     if (munisRes.error) throw munisRes.error;
     const munis = munisRes.data || [];
-    const weather = weatherRes.data || [];
-    const air = await getLatestAirQuality(supabaseAdmin, munis);
-
-    const weatherMap = new Map();
-    for (const w of weather) {
-      if (!weatherMap.has(w.municipality_id)) {
-        weatherMap.set(w.municipality_id, w);
-      }
-    }
+    const [weatherMap, recentExtremeCaution, air] = await Promise.all([
+      getLatestWeatherTelemetry(supabaseAdmin, munis),
+      getRecentExtremeCaution(supabaseAdmin, now),
+      getLatestAirQuality(supabaseAdmin, munis),
+    ]);
 
     const airMap = new Map();
     for (const a of air) {
@@ -99,6 +89,7 @@ export async function GET(request) {
         humidity: w.humidity ?? null,
         heat_index: w.heat_index ?? null,
         heat_index_category: w.heat_index_category ?? null,
+        recent_extreme_caution: recentExtremeCaution.get(m.municipality_id) || null,
         rainfall_mm: rainMm,
         rainfall_category: w.rainfall_category || getRainfallCat(rainMm),
         wind_speed: w.wind_speed ?? null,
