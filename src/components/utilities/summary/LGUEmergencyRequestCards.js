@@ -141,10 +141,11 @@ export default function LGUEmergencyRequestCards() {
   const [searchQuery, setSearchQuery] = useState("")
   const [fetchError, setFetchError] = useState(null)
   const currentFetch = useRef(null)
+  const retryAfter = useRef(0)
   const [isLive, setIsLive] = useState(false)
 
   const fetchRequests = useCallback(async (showLoading = true) => {
-    if (currentFetch.current) return
+    if (currentFetch.current || document.visibilityState === 'hidden' || Date.now() < retryAfter.current) return
     const controller = new AbortController()
     currentFetch.current = controller
     if (showLoading) setIsLoading(true)
@@ -155,6 +156,7 @@ export default function LGUEmergencyRequestCards() {
       setFetchError(null)
     } catch (err) {
       if (controller.signal.aborted) return
+      retryAfter.current = Date.now() + 30000
       setFetchError("Unable to sync emergency requests right now. Retrying automatically.")
       console.error("[LGUEmergencyRequestCards] fetch error:", err)
     } finally {
@@ -183,7 +185,7 @@ export default function LGUEmergencyRequestCards() {
     const syncVisible = () => {
       if (document.visibilityState === "visible") scheduleRefresh()
     }
-    const fallbackSync = setInterval(syncVisible, 5000)
+    const fallbackSync = setInterval(syncVisible, 60000)
     window.addEventListener("focus", syncVisible)
     window.addEventListener("online", syncVisible)
     document.addEventListener("visibilitychange", syncVisible)

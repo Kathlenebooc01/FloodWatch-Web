@@ -32,8 +32,12 @@ export default function LGUSummary() {
 
   useEffect(() => {
     let isMounted = true;
+    let fetching = false;
+    let retryAfter = 0;
 
     const loadData = async () => {
+      if (!isMounted || fetching || document.visibilityState === 'hidden' || Date.now() < retryAfter) return;
+      fetching = true;
       try {
         const [reportsRes, distressRows] = await Promise.all([
           supabase
@@ -61,6 +65,7 @@ export default function LGUSummary() {
         ]);
 
         if (!isMounted) return;
+        if (reportsRes.error) throw reportsRes.error;
 
         const situationalPending = (reportsRes.data || []).filter((r) => {
           const h = (r.hazard_type || "").toLowerCase();
@@ -69,7 +74,7 @@ export default function LGUSummary() {
           return h.includes("situational") || t.includes("situational") || d.includes("field status") || d.includes("pending escalation");
         });
 
-        const repCount = reportsRes.error ? (cachedSummary?.reportsCount ?? 0) : situationalPending.length;
+        const repCount = situationalPending.length;
         const disCount = new Set(distressRows.map(row => row.municipality_id || row.profile_id).filter(Boolean)).size;
 
         const updatedSummary = { reportsCount: repCount, distressCount: disCount };
@@ -83,32 +88,40 @@ export default function LGUSummary() {
         setPendingReportsCount(repCount);
         setPendingDistressCount(disCount);
       } catch (err) {
+        retryAfter = Date.now() + 30000;
         console.error("🚨 Error fetching summary counts:", err);
       } finally {
+        fetching = false;
         if (isMounted) setIsLoading(false);
       }
     };
 
     loadData();
+    let changeTimer;
+    const scheduleRefresh = () => {
+      clearTimeout(changeTimer);
+      changeTimer = setTimeout(loadData, 500);
+    };
 
     // 1. Realtime subscriptions for instant push notifications
     const summaryChannel = supabase
       .channel("lgu-summary-realtime-monitor")
       .on("postgres_changes", { event: "*", schema: "public", table: "incident_report" }, () => {
-        loadData();
+        scheduleRefresh();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "distress_signals" }, () => {
-        loadData();
+        scheduleRefresh();
       })
       .subscribe();
 
     // 2. Background Auto-Polling Interval (synchronize silently every 15 seconds)
-    const autoRefreshInterval = setInterval(() => {
-      loadData();
-    }, 15000);
+    const autoRefreshInterval = setInterval(loadData, 60000);
+    document.addEventListener('visibilitychange', loadData);
 
     return () => {
       isMounted = false;
+      clearTimeout(changeTimer);
+      document.removeEventListener('visibilitychange', loadData);
       supabase.removeChannel(summaryChannel);
       clearInterval(autoRefreshInterval);
     };

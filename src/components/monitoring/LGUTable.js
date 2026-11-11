@@ -418,8 +418,12 @@ export default function LGUTable() {
 
   useEffect(() => {
     let isMounted = true;
+    let fetching = false;
+    let retryAfter = 0;
 
     const fetchAllData = async () => {
+      if (!isMounted || fetching || document.visibilityState === 'hidden' || Date.now() < retryAfter) return;
+      fetching = true;
       try {
         if (!await ensureFreshSession(supabase)) {
           if (isMounted) setReportFetchError("Session expired. Please sign in again.");
@@ -435,6 +439,7 @@ export default function LGUTable() {
         ]);
 
         if (!isMounted) return;
+        if (disRes.error) throw disRes.error;
 
         setReportFetchError(null);
         const allIncidentRows = repRes;
@@ -524,9 +529,11 @@ export default function LGUTable() {
           });
         }
       } catch (err) {
+        retryAfter = Date.now() + 30000;
         if (isMounted) setReportFetchError("Unable to refresh reports. Please try again shortly.");
         console.error("ðŸš¨ Error in fetchAllData:", err);
       } finally {
+        fetching = false;
         if (isMounted) {
           setIsLoadingReports(false);
           setIsLoadingDistress(false);
@@ -535,28 +542,34 @@ export default function LGUTable() {
     };
 
     fetchAllData();
+    let changeTimer;
+    const scheduleRefresh = () => {
+      clearTimeout(changeTimer);
+      changeTimer = setTimeout(fetchAllData, 500);
+    };
 
     // Realtime Subscriptions
     const reportChannel = supabase
       .channel("lgu-auto-fetch-reports-v7")
       .on("postgres_changes", { event: "*", schema: "public", table: "incident_report" }, () => {
-        fetchAllData();
+        scheduleRefresh();
       })
       .subscribe();
 
     const distressChannel = supabase
       .channel("lgu-auto-fetch-distress-v7")
       .on("postgres_changes", { event: "*", schema: "public", table: "distress_signals" }, () => {
-        fetchAllData();
+        scheduleRefresh();
       })
       .subscribe();
 
-    const autoFetchInterval = setInterval(() => {
-      fetchAllData();
-    }, 15000);
+    const autoFetchInterval = setInterval(fetchAllData, 60000);
+    document.addEventListener('visibilitychange', fetchAllData);
 
     return () => {
       isMounted = false;
+      clearTimeout(changeTimer);
+      document.removeEventListener('visibilitychange', fetchAllData);
       supabase.removeChannel(reportChannel);
       supabase.removeChannel(distressChannel);
       clearInterval(autoFetchInterval);

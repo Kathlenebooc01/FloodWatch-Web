@@ -37,6 +37,7 @@ import PrimaryButton from "@/components/button/PrimaryButton"
 import GeneralInput from "@/components/forms/GeneralInput"
 import SearchInput from "@/components/forms/SearchInput"
 import DeleteSeedAreaModal from "@/components/Seeding/DeleteSeedAreaModal"
+import BarangayListModal from "@/components/Seeding/BarangayListModal"
 import { supabase } from "@/supabase/util/supabase"
 import { clientApiAuthorization } from '@/lib/auth/clientApiAuthorization'
 
@@ -235,7 +236,7 @@ function parseBoundaryToGeoJson(boundary, fallbackLng, fallbackLat, radiusKm = 5
   return createGeofence(fallbackLng, fallbackLat, radiusKm * 0.009).geojson;
 }
 
-function LazyRow({ row, onRowClick, scrollRoot }) {
+function LazyRow({ row, onRowClick, onViewBarangays, scrollRoot }) {
   const [state, setState] = useState("hidden");
   const ref = useRef(null);
 
@@ -286,9 +287,12 @@ function LazyRow({ row, onRowClick, scrollRoot }) {
         <>
           <TableData className="font-medium text-gray-800">{row.province}</TableData>
           <TableData>
-            <span className="text-sm text-gray-600">
-              {row.municipality}
-            </span>
+            <span className="text-sm text-gray-600">{row.municipality}</span>
+            {row.municipality_id && (
+              <button type="button" onClick={() => onViewBarangays(row)} className="ml-2 text-xs font-semibold text-primary underline-offset-2 hover:underline" aria-label={`View barangays of ${row.municipality}`}>
+                View barangays
+              </button>
+            )}
           </TableData>
           <TableDataMuted>{row.total_population == null ? 'N/A' : Number(row.total_population).toLocaleString('en-PH')}</TableDataMuted>
           <TableDataMuted>{row.number_of_households == null ? 'N/A' : Number(row.number_of_households).toLocaleString('en-PH')}</TableDataMuted>
@@ -312,6 +316,7 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
   const scrollRef = useRef(null);
   const [tableRows, setTableRows] = useState(data);
   const [selectedRow, setSelectedRow] = useState(null);
+  const [barangayRow, setBarangayRow] = useState(null);
 
   const [isEditing, setIsEditing] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -767,6 +772,7 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
                   key={row.id} 
                   row={row} 
                   onRowClick={handleRowClick} 
+                  onViewBarangays={setBarangayRow}
                   scrollRoot={scrollRef.current} 
                 />
               ))
@@ -1166,6 +1172,14 @@ export default function SeedTable({ data = [], title = "Area Seeding Table", onR
             )}
           </div>
         </SideModal>
+      )}
+
+      {barangayRow && (
+        <BarangayListModal
+          municipality={barangayRow.municipality}
+          province={barangayRow.province}
+          onClose={() => setBarangayRow(null)}
+        />
       )}
 
       {/* Floating Delete Confirmation Modal */}

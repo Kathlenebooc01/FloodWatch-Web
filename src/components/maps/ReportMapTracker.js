@@ -132,8 +132,14 @@ export default function ReportMapTracker() {
   }, [requestedReportId, incidents]);
 
   useEffect(() => {
+    let isMounted = true;
+    let fetching = false;
+    let retryAfter = 0;
     // 1. Fetch incident reports along with municipality and potential specific location tables
     const fetchData = async () => {
+      if (!isMounted || fetching || document.visibilityState === 'hidden' || Date.now() < retryAfter) return;
+      fetching = true;
+      try {
       let munis = [];
       try {
         const telRes = await fetch('/api/monitoring/telemetry');
@@ -158,6 +164,7 @@ export default function ReportMapTracker() {
 
       if (incidentsRes.error) {
         console.error("🚨 Supabase Error fetching incident_report 🚨:", incidentsRes.error.message);
+        retryAfter = Date.now() + 30000;
         return;
       }
 
@@ -200,7 +207,6 @@ export default function ReportMapTracker() {
         };
       });
 
-      console.log("📍 [ReportMapTracker Debug] Loaded incidents:", processed.length, "| Displayable pins:", processed.filter(p => p.latitude != null && p.longitude != null).length, processed);
       if (!isMounted) return;
       setIncidents(processed);
       setCachedMonitoringData('incidentReports', processed);
@@ -211,10 +217,20 @@ export default function ReportMapTracker() {
         const updated = processed.find(r => r.report_id === prev.report_id);
         return updated || prev;
       });
+      } catch (error) {
+        retryAfter = Date.now() + 30000;
+        console.error('[ReportMapTracker] Unable to refresh reports:', error);
+      } finally {
+        fetching = false;
+      }
     };
 
-    let isMounted = true;
     fetchData();
+    let changeTimer;
+    const scheduleRefresh = () => {
+      clearTimeout(changeTimer);
+      changeTimer = setTimeout(fetchData, 500);
+    };
 
     // 2. Realtime: Subscribe to incident_report inserts and updates
     const incidentsChannel = supabase
@@ -222,12 +238,12 @@ export default function ReportMapTracker() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'incident_report' },
-        () => { if (isMounted) fetchData(); }
+        scheduleRefresh
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'incident_report' },
-        () => { if (isMounted) fetchData(); }
+        scheduleRefresh
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
@@ -235,13 +251,16 @@ export default function ReportMapTracker() {
         }
       });
 
-    // 3. Fast polling every 3s — guarantees real-time feel even if realtime channel lags
+    // Realtime handles active updates; this is only a fallback when events are missed.
     const pollInterval = setInterval(() => {
-      if (isMounted) fetchData();
-    }, 3000);
+      fetchData();
+    }, 60000);
+    document.addEventListener('visibilitychange', fetchData);
 
     return () => {
       isMounted = false;
+      clearTimeout(changeTimer);
+      document.removeEventListener('visibilitychange', fetchData);
       supabase.removeChannel(incidentsChannel);
       clearInterval(pollInterval);
     };

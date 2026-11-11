@@ -64,7 +64,7 @@ function card(initialRows) {
   const render = () => { cursor = 0; const tree = compiledModule.exports.default(); while (effects.length) effects.shift()(); return tree; };
   const flush = async () => { const pending = [...timers.values()]; timers.clear(); await Promise.all(pending.map(fn => fn())); };
   return { render, flush, setRows(value) { rows = value; }, realtime() { state.listeners.resource_requests(); },
-    async poll() { for (const { fn, ms } of intervals.values()) if (ms === 5000) fn(); await flush(); } };
+    async poll() { for (const { fn, ms } of intervals.values()) if (ms === 60000) fn(); await flush(); } };
 }
 test('dashboard displays new High requests and status changes without refreshing the page', async () => {
   const app = card([row('low', 'LOW Urgency Request')]);

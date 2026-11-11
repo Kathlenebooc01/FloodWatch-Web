@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import GeneralCard from "@/components/cards/GeneralCard"
 import { Package, ChevronRight } from "lucide-react"
 import CardSubHeader from "@/components/cards/CardSubHeader"
@@ -13,29 +13,43 @@ import { fetchHighUrgencyRequests } from "@/lib/emergency-requests.mjs"
 export default function PendingListSummary() {
   const [topPending, setTopPending] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
+  const inFlight = useRef(false)
+  const retryAfter = useRef(0)
 
   const fetchTopPending = async (showLoading = true) => {
+    if (inFlight.current || document.visibilityState === 'hidden' || Date.now() < retryAfter.current) return
+    inFlight.current = true
     if (showLoading) setIsLoading(true)
     try {
       const requests = await fetchHighUrgencyRequests(supabase, AbortSignal.timeout(10000))
       setTopPending(requests.find(request => statusVariants(['Pending', 'Pending_Dispatch']).includes(request.status)) || null)
     } catch (error) {
+      retryAfter.current = Date.now() + 30000
       console.error('Unable to sync pending High urgency requests:', error)
-    } finally { setIsLoading(false) }
+    } finally { inFlight.current = false; setIsLoading(false) }
   }
 
   useEffect(() => {
     const initialFetch = setTimeout(() => fetchTopPending(), 0)
-    const syncTimer = setInterval(() => { if (document.visibilityState === 'visible') fetchTopPending(false) }, 5000)
+    const syncTimer = setInterval(() => fetchTopPending(false), 60000)
+    const refreshOnVisible = () => { if (document.visibilityState === 'visible') fetchTopPending(false) }
+    document.addEventListener('visibilitychange', refreshOnVisible)
+    let changeTimer
+    const scheduleRefresh = () => {
+      clearTimeout(changeTimer)
+      changeTimer = setTimeout(() => fetchTopPending(false), 500)
+    }
 
     const channel = supabase
       .channel('pending-list-summary-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_requests' }, () => fetchTopPending(false))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resource_requests' }, scheduleRefresh)
       .subscribe()
 
     return () => {
       clearTimeout(initialFetch)
+      clearTimeout(changeTimer)
       clearInterval(syncTimer)
+      document.removeEventListener('visibilitychange', refreshOnVisible)
       supabase.removeChannel(channel)
     }
   }, [])
